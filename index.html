@@ -16,17 +16,7 @@ body {
   color:black;
 }
 
-/* LOGIN */
-#login {
-  padding:20px;
-}
-
-/* APP */
-#app {
-  display:none;
-}
-
-/* ZONA ESCANEO */
+/* SCANNER */
 #scannerBox {
   width:100%;
   background:#e6f2ff;
@@ -38,12 +28,12 @@ body {
   width:100%;
 }
 
-/* CONTENIDO */
+/* CONTENEDOR */
 .container {
   padding:15px;
 }
 
-/* INPUTS */
+/* INPUTS FULL WIDTH REAL */
 input {
   width:100%;
   padding:15px;
@@ -51,31 +41,28 @@ input {
   font-size:16px;
   border:1px solid #ccc;
   border-radius:8px;
+  box-sizing:border-box;
 }
 
 /* BOTONES */
 button {
+  width:100%;
   padding:18px;
   font-size:16px;
   border:none;
   border-radius:10px;
+  cursor:pointer; /* 👈 cursor PC */
 }
 
-.btn {
-  background:#ddd;
+button:hover {
+  opacity:0.9;
 }
 
-.btn-ok {
-  background:#22c55e;
-  color:black;
-}
+.btn { background:#ddd; }
+.btn-ok { background:#22c55e; }
+.btn-out { background:#ef4444; color:white; }
 
-.btn-out {
-  background:#ef4444;
-  color:white;
-}
-
-/* BOTONES GRANDES */
+/* GRID */
 .grid {
   display:flex;
   gap:10px;
@@ -103,7 +90,7 @@ button {
 <body>
 
 <!-- LOGIN -->
-<div id="login">
+<div id="login" class="container">
   <h2>Login</h2>
   <input id="login_nombre" placeholder="Usuario">
   <input id="login_pin" type="password" placeholder="PIN">
@@ -111,18 +98,15 @@ button {
 </div>
 
 <!-- APP -->
-<div id="app">
+<div id="app" style="display:none;">
 
-<!-- ESCANEO FULL WIDTH -->
+<!-- SCANNER -->
 <div id="scannerBox">
   <button onclick="iniciarScanner()" class="btn">📷 Escanear</button>
   <div id="reader"></div>
 </div>
 
-<!-- RESTO -->
 <div class="container">
-
-<h3>Operación</h3>
 
 <input id="codigo" placeholder="Código">
 <input id="cantidad" type="number" value="1">
@@ -134,13 +118,12 @@ button {
   <button onclick="registrar('salida')" class="btn-out">Salida</button>
 </div>
 
-<!-- NAVEGACIÓN -->
 <div class="nav">
   <button onclick="irAlmacen()" class="btn">📦 Almacén</button>
   <button onclick="irHistorico()" class="btn">📊 Histórico</button>
 </div>
 
-<button onclick="logout()" class="btn-out" style="width:100%; margin-top:10px;">
+<button onclick="logout()" class="btn-out" style="margin-top:10px;">
   Salir
 </button>
 
@@ -148,10 +131,13 @@ button {
 </div>
 
 <script>
-const API_URL = "https://script.google.com/macros/s/AKfycbxyURi4bcmWwsaZ4vdXUUVnr_Xu7y9BRG75tITfdwh-zgSIFpvC2lyKJLTT3XTFNS5XZA/exec?v=4";
+const API_URL = "https://script.google.com/macros/s/AKfycbxyURi4bcmWwsaZ4vdXUUVnr_Xu7y9BRG75tITfdwh-zgSIFpvC2lyKJLTT3XTFNS5XZA/exec?v=5";
 
 let DATA = {};
 let scanner = null;
+
+// SONIDO
+const beep = new Audio("https://actions.google.com/sounds/v1/cartoon/clang_and_wobble.ogg");
 
 // INIT
 window.onload = async () => {
@@ -233,11 +219,13 @@ function iniciarScanner() {
   scanner.start({ facingMode:"environment" }, { fps:10 },
     (txt) => {
       document.getElementById("codigo").value = txt;
+      beep.play(); // 🔊 sonido escaneo
       scanner.stop();
+      document.getElementById("cantidad").focus();
     });
 }
 
-// REGISTRO
+// REGISTRAR
 function registrar(tipo) {
   const sesion = JSON.parse(localStorage.getItem("sesion"));
 
@@ -255,7 +243,19 @@ function registrar(tipo) {
     body: JSON.stringify(data)
   });
 
-  alert("Registrado");
+  beep.play(); // 🔊 sonido registro
+
+  limpiarCampos();
+}
+
+// LIMPIEZA + FOCO
+function limpiarCampos() {
+  document.getElementById("codigo").value = "";
+  document.getElementById("cantidad").value = 1;
+  document.getElementById("ot").value = "";
+  document.getElementById("obs").value = "";
+
+  document.getElementById("codigo").focus();
 }
 </script>
 
