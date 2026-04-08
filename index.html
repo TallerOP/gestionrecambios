@@ -4,6 +4,8 @@
 <meta charset="UTF-8">
 <title>Almacén</title>
 
+<script src="https://unpkg.com/html5-qrcode"></script>
+
 <style>
 body {
   font-family: Arial;
@@ -16,43 +18,76 @@ body {
 
 button {
   width:100%;
-  padding:20px;
-  margin:10px 0;
-  font-size:18px;
+  padding:15px;
+  margin:5px 0;
+  font-size:16px;
   border:none;
-  border-radius:10px;
+  border-radius:8px;
+}
+
+input {
+  width:100%;
+  padding:10px;
+  margin:5px 0;
 }
 
 .btn { background:#ddd; }
-.btn-main { background:#22c55e; }
-.btn-danger { background:#ef4444; color:white; }
+.btn-ok { background:#22c55e; }
+.btn-out { background:#ef4444; color:white; }
+
+.grid {
+  display:grid;
+  grid-template-columns:1fr 1fr;
+  gap:10px;
+}
 </style>
 </head>
 
 <body>
 
+<!-- LOGIN -->
 <div id="login" class="container">
   <h2>Login</h2>
   <input id="login_nombre" placeholder="Usuario">
   <input id="login_pin" type="password" placeholder="PIN">
-  <button id="btnLogin" class="btn-main">Entrar</button>
+  <button id="btnLogin" class="btn-ok">Entrar</button>
 </div>
 
+<!-- APP PRINCIPAL -->
 <div id="app" style="display:none;" class="container">
 
-<h2>Menú</h2>
+<h2>📦 Almacén</h2>
 
+<!-- NAV -->
 <button onclick="irHistorico()" class="btn">📊 Histórico</button>
 <button onclick="irAlmacen()" class="btn">📦 Almacén</button>
+<button onclick="logout()" class="btn-out">Salir</button>
 
-<button onclick="logout()" class="btn-danger">Salir</button>
+<hr>
+
+<!-- OPERATIVA -->
+<button onclick="iniciarScanner()" class="btn">📷 Escanear</button>
+<div id="reader"></div>
+
+<input id="codigo" placeholder="Código">
+<input id="cantidad" type="number" value="1">
+<input id="ot" placeholder="OT">
+<input id="obs" placeholder="Observaciones">
+
+<div class="grid">
+  <button onclick="registrar('entrada')" class="btn-ok">Entrada</button>
+  <button onclick="registrar('salida')" class="btn-out">Salida</button>
+</div>
+
+<div id="info"></div>
 
 </div>
 
 <script>
-const API_URL = "https://script.google.com/macros/s/AKfycbxyURi4bcmWwsaZ4vdXUUVnr_Xu7y9BRG75tITfdwh-zgSIFpvC2lyKJLTT3XTFNS5XZA/exec?v=2"; // cache bust
+const API_URL = "https://script.google.com/macros/s/AKfycbxyURi4bcmWwsaZ4vdXUUVnr_Xu7y9BRG75tITfdwh-zgSIFpvC2lyKJLTT3XTFNS5XZA/exec?v=3";
 
 let DATA = {};
+let scanner = null;
 
 // INIT
 window.onload = async () => {
@@ -60,12 +95,24 @@ window.onload = async () => {
 
   document.getElementById("btnLogin").addEventListener("click", login);
 
+  checkSesion();
+};
+
+// 🔐 CONTROL SESIÓN
+function checkSesion() {
   const sesion = JSON.parse(localStorage.getItem("sesion"));
 
-  if (sesion) {
+  if (!sesion) return;
+
+  const ahora = Date.now();
+  const duracion = 8 * 60 * 60 * 1000;
+
+  if (ahora - sesion.timestamp < duracion) {
     entrarApp();
+  } else {
+    localStorage.removeItem("sesion");
   }
-};
+}
 
 // LOGIN
 function login() {
@@ -88,19 +135,16 @@ function login() {
   entrarApp();
 }
 
+// ENTRAR
 function entrarApp() {
   document.getElementById("login").style.display="none";
   document.getElementById("app").style.display="block";
 }
 
+// LOGOUT
 function logout() {
   localStorage.removeItem("sesion");
   location.reload();
-}
-
-async function cargarDatos() {
-  const res = await fetch(API_URL);
-  DATA = await res.json();
 }
 
 // NAV
@@ -110,6 +154,44 @@ function irHistorico() {
 
 function irAlmacen() {
   window.location.href = "almacen.html";
+}
+
+// DATOS
+async function cargarDatos() {
+  const res = await fetch(API_URL);
+  DATA = await res.json();
+}
+
+// SCANNER
+function iniciarScanner() {
+  scanner = new Html5Qrcode("reader");
+
+  scanner.start({ facingMode:"environment" }, { fps:10 },
+    (txt) => {
+      document.getElementById("codigo").value = txt;
+      scanner.stop();
+    });
+}
+
+// REGISTRAR
+function registrar(tipo) {
+  const sesion = JSON.parse(localStorage.getItem("sesion"));
+
+  const data = {
+    codigo: document.getElementById("codigo").value,
+    tipo: tipo,
+    usuario: sesion?.usuario || "desconocido",
+    cantidad: document.getElementById("cantidad").value,
+    orden: document.getElementById("ot").value,
+    observaciones: document.getElementById("obs").value
+  };
+
+  fetch(API_URL, {
+    method:"POST",
+    body: JSON.stringify(data)
+  });
+
+  alert("Movimiento registrado");
 }
 </script>
 
