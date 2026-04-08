@@ -14,7 +14,6 @@ body {
   margin:0;
   background:white;
   color:black;
-  position:relative;
 }
 
 /* FONDO */
@@ -25,7 +24,7 @@ body::before {
   height:100%;
   background:url("op.png") center no-repeat;
   background-size:60%;
-  opacity:0.2;
+  opacity:0.1;
   z-index:-1;
 }
 
@@ -109,7 +108,7 @@ button {
 <input id="codigo" placeholder="Código" oninput="buscarRecambio()">
 <input id="nombre" placeholder="Nombre recambio" readonly>
 
-<input id="cantidad" type="number" value="1">
+<input id="cantidad" type="number" value="1" min="1">
 <input id="ot" placeholder="OT">
 
 <div class="grid">
@@ -128,12 +127,16 @@ button {
 </div>
 
 <script>
-const API_URL = "https://script.google.com/macros/s/AKfycbxyURi4bcmWwsaZ4vdXUUVnr_Xu7y9BRG75tITfdwh-zgSIFpvC2lyKJLTT3XTFNS5XZA/exec?v=7";
+const API_URL = "https://script.google.com/macros/s/AKfycbxyURi4bcmWwsaZ4vdXUUVnr_Xu7y9BRG75tITfdwh-zgSIFpvC2lyKJLTT3XTFNS5XZA/exec?v=8";
 
 let DATA = {};
 let scanner = null;
+let ultimoScan = "";
+let tiempoScan = 0;
 
-const beep = new Audio("https://actions.google.com/sounds/v1/cartoon/clang_and_wobble.ogg");
+// SONIDOS
+const okSound = new Audio("https://actions.google.com/sounds/v1/cartoon/wood_plank_flicks.ogg");
+const errorSound = new Audio("https://actions.google.com/sounds/v1/alarms/beep_short.ogg");
 
 // INIT
 window.onload = async () => {
@@ -142,7 +145,7 @@ window.onload = async () => {
   checkSesion();
 };
 
-// 🔐 SESIÓN
+// SESIÓN
 function checkSesion() {
   const sesion = JSON.parse(localStorage.getItem("sesion"));
   if (!sesion) return;
@@ -154,12 +157,9 @@ function checkSesion() {
   }
 }
 
-// LOGIN (FIX REAL)
+// LOGIN
 function login() {
-  if (!DATA.usuarios) {
-    alert("Datos no cargados aún");
-    return;
-  }
+  if (!DATA.usuarios) return alert("Datos no cargados");
 
   const nombre = document.getElementById("login_nombre").value.trim();
   const pin = document.getElementById("login_pin").value.trim();
@@ -170,10 +170,7 @@ function login() {
     String(u.activo).trim().toUpperCase() === "SI"
   );
 
-  if (!user) {
-    alert("Usuario o PIN incorrecto");
-    return;
-  }
+  if (!user) return alert("Usuario o PIN incorrecto");
 
   localStorage.setItem("sesion", JSON.stringify({
     usuario: nombre,
@@ -183,10 +180,10 @@ function login() {
   entrarApp();
 }
 
-// UI (FIX CLAVE)
+// UI
 function entrarApp() {
-  document.getElementById("login").style.display = "none";
-  document.getElementById("app").style.display = "block";
+  document.getElementById("login").style.display="none";
+  document.getElementById("app").style.display="block";
 }
 
 // LOGOUT
@@ -212,15 +209,36 @@ function buscarRecambio() {
   document.getElementById("nombre").value = r ? r.nombre : "";
 }
 
-// SCANNER
+// SCANNER con estabilidad 1s
 function iniciarScanner() {
   scanner = new Html5Qrcode("reader");
 
   scanner.start({ facingMode:"environment" }, { fps:10 },
     (txt) => {
+
+      if (txt !== ultimoScan) {
+        ultimoScan = txt;
+        tiempoScan = Date.now();
+        return;
+      }
+
+      if (Date.now() - tiempoScan < 1000) return;
+
       document.getElementById("codigo").value = txt;
       buscarRecambio();
-      beep.play();
+
+      const existe = DATA.recambios.find(x =>
+        x.codigo == txt || x.codigo_sap == txt
+      );
+
+      if (existe) {
+        okSound.play();
+      } else {
+        errorSound.play();
+      }
+
+      if (navigator.vibrate) navigator.vibrate(100);
+
       scanner.stop();
     });
 }
@@ -228,12 +246,36 @@ function iniciarScanner() {
 // REGISTRAR
 function registrar(tipo) {
   const sesion = JSON.parse(localStorage.getItem("sesion"));
+  const codigo = document.getElementById("codigo").value.trim();
+  const cantidad = Number(document.getElementById("cantidad").value);
+
+  if (!cantidad || cantidad <= 0) {
+    alert("Cantidad inválida");
+    return;
+  }
+
+  const recambio = DATA.recambios.find(x =>
+    x.codigo == codigo || x.codigo_sap == codigo
+  );
+
+  if (!recambio) {
+    errorSound.play();
+    alert("Recambio no existe");
+    return;
+  }
+
+  if (tipo === "salida") {
+    if (cantidad > Number(recambio.stock)) {
+      alert("Stock insuficiente");
+      return;
+    }
+  }
 
   const data = {
-    codigo: document.getElementById("codigo").value,
+    codigo,
     tipo,
     usuario: sesion?.usuario || "desconocido",
-    cantidad: document.getElementById("cantidad").value,
+    cantidad,
     orden: document.getElementById("ot").value
   };
 
@@ -242,7 +284,7 @@ function registrar(tipo) {
     body: JSON.stringify(data)
   });
 
-  beep.play();
+  okSound.play();
   limpiar();
 }
 
