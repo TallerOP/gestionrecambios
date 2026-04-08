@@ -37,19 +37,12 @@ body::before {
   align-items: center;
 
   background: rgba(255,255,255,0.95);
-  padding: 12px 10px;
+  padding: 12px;
 
   box-shadow: 0 2px 8px rgba(0,0,0,0.08);
 }
 
-.header img { height:42px; }
-
-.header h3 {
-  margin:0;
-  font-size:18px;
-}
-
-/* CONTENIDO */
+/* CONTENEDOR */
 .container { padding:15px; }
 
 /* BOTONES */
@@ -62,9 +55,11 @@ button {
 
 .btn { background:#ddd; }
 
-.btn-edit {
-  background:#0E3471;
-  color:white;
+/* BUSCADOR */
+#buscador {
+  width:100%;
+  padding:10px;
+  margin:10px 0;
 }
 
 /* TABLA */
@@ -74,66 +69,49 @@ button {
   font-size:14px;
 }
 
+.table th, .table td {
+  padding:8px;
+  border-right:1px solid rgba(0,0,0,0.05);
+  text-align:center;
+}
+
+.table td.nombre {
+  text-align:left;
+}
+
+/* FILAS */
 .table tr {
   border-bottom:1px solid rgba(0,0,0,0.3);
 }
 
-.table td, .table th {
-  padding:8px;
-  border-right:1px solid rgba(0,0,0,0.05);
-}
-
-.table th {
+/* HEADER FIJO */
+.table thead th {
+  position: sticky;
+  top: 80px;
   background:#f5f5f5;
+  z-index:500;
 }
 
-/* CRÍTICOS */
-.critico {
-  background:#fff3b0;
-  font-weight:bold;
-}
-
-/* MODAL */
-.modal {
-  position:fixed;
-  top:0;
-  left:0;
-  width:100%;
-  height:100%;
-  background:rgba(0,0,0,0.5);
-  display:none;
-  align-items:center;
-  justify-content:center;
-}
-
-.modal-content {
-  background:white;
-  padding:20px;
-  width:90%;
-  max-width:400px;
-  border-radius:10px;
-}
-
-input {
-  width:100%;
-  padding:10px;
-  margin:5px 0;
-}
+/* ALERTAS */
+.bajo { background:#ffb3b3; }
+.alto { background:#ffd699; }
+.critico { background:#fff3b0; font-weight:bold; }
 </style>
 </head>
 
 <body>
 
 <div class="header">
-  <img src="op.png">
+  <img src="op.png" height="40">
   <h3>Gestión de recambios OP Mobility Pedrola</h3>
 </div>
 
 <div class="container">
 
 <button onclick="volver()" class="btn">⬅ Volver</button>
+<button onclick="irHistorico()" class="btn">📊 Histórico</button>
 
-<h3>Listado de recambios</h3>
+<input id="buscador" placeholder="Buscar..." oninput="filtrar()">
 
 <table class="table">
 <thead>
@@ -145,7 +123,6 @@ input {
 <th>Mín</th>
 <th>Máx</th>
 <th>Crítico</th>
-<th></th>
 </tr>
 </thead>
 <tbody id="tabla"></tbody>
@@ -153,104 +130,67 @@ input {
 
 </div>
 
-<!-- MODAL -->
-<div id="modal" class="modal">
-  <div class="modal-content">
-    <h3>Editar recambio</h3>
-
-    <input id="e_codigo" readonly>
-    <input id="e_nombre" placeholder="Nombre">
-    <input id="e_ubicacion" placeholder="Ubicación">
-    <input id="e_min" type="number" placeholder="Min">
-    <input id="e_max" type="number" placeholder="Max">
-    <input id="e_critico" placeholder="SI / NO">
-
-    <button onclick="guardar()">Guardar</button>
-    <button onclick="cerrar()">Cancelar</button>
-  </div>
-</div>
-
 <script>
-const API_URL = "https://script.google.com/macros/s/AKfycbxyURi4bcmWwsaZ4vdXUUVnr_Xu7y9BRG75tITfdwh-zgSIFpvC2lyKJLTT3XTFNS5XZA/exec?v=10";
+const API_URL = "https://script.google.com/macros/s/AKfycbxyURi4bcmWwsaZ4vdXUUVnr_Xu7y9BRG75tITfdwh-zgSIFpvC2lyKJLTT3XTFNS5XZA/exec?v=12";
 
 // 🔐 SESIÓN
 let sesion = JSON.parse(localStorage.getItem("sesion"));
-if (!sesion) window.location.href = "index.html";
+if (!sesion) window.location.href="index.html";
 
-// 🔁 REFRESCA SESIÓN (SOLUCIÓN LOGIN)
+// 🔁 refresca sesión
 sesion.timestamp = Date.now();
 localStorage.setItem("sesion", JSON.stringify(sesion));
 
 let DATA = [];
-let actual = null;
+let FILTRADOS = [];
 
 window.onload = async () => {
   const res = await fetch(API_URL);
   const json = await res.json();
   DATA = json.recambios;
+  FILTRADOS = DATA;
   render();
 };
 
 // RENDER
 function render() {
-  tabla.innerHTML = DATA.map(r => `
-    <tr class="${(r.critico || '').toUpperCase() === 'SI' ? 'critico' : ''}">
-      <td>${r.codigo}</td>
-      <td>${r.nombre}</td>
-      <td>${r.ubicacion || ''}</td>
-      <td>${r.stock}</td>
-      <td>${r.min}</td>
-      <td>${r.max}</td>
-      <td>${r.critico || ''}</td>
-      <td><button class="btn-edit" onclick="editar('${r.codigo}')">✏️</button></td>
-    </tr>
-  `).join("");
+  tabla.innerHTML = FILTRADOS.map(r => {
+
+    let clase = "";
+
+    if (Number(r.stock) < Number(r.min)) clase = "bajo";
+    else if (Number(r.stock) > Number(r.max)) clase = "alto";
+    else if ((r.critico || "").toUpperCase() === "SI") clase = "critico";
+
+    return `
+      <tr class="${clase}">
+        <td>${r.codigo}</td>
+        <td class="nombre">${r.nombre}</td>
+        <td>${r.ubicacion || ''}</td>
+        <td>${r.stock}</td>
+        <td>${r.min}</td>
+        <td>${r.max}</td>
+        <td>${r.critico || ''}</td>
+      </tr>
+    `;
+  }).join("");
 }
 
-// EDITAR
-function editar(codigo) {
-  actual = DATA.find(r => r.codigo == codigo);
+// FILTRO
+function filtrar() {
+  const v = buscador.value.toLowerCase();
 
-  e_codigo.value = actual.codigo;
-  e_nombre.value = actual.nombre;
-  e_ubicacion.value = actual.ubicacion;
-  e_min.value = actual.min;
-  e_max.value = actual.max;
-  e_critico.value = actual.critico;
+  FILTRADOS = DATA.filter(r =>
+    r.codigo.toLowerCase().includes(v) ||
+    r.nombre.toLowerCase().includes(v)
+  );
 
-  modal.style.display = "flex";
+  render();
 }
 
-// GUARDAR
-function guardar() {
-  const data = {
-    accion: "editarRecambio",
-    codigo: e_codigo.value,
-    nombre: e_nombre.value,
-    ubicacion: e_ubicacion.value,
-    min: e_min.value,
-    max: e_max.value,
-    critico: e_critico.value
-  };
-
-  fetch(API_URL, {
-    method:"POST",
-    body: JSON.stringify(data)
-  });
-
-  cerrar();
-  location.reload();
-}
-
-// CERRAR
-function cerrar() {
-  modal.style.display = "none";
-}
-
-// VOLVER
-function volver() {
-  window.location.href = "index.html";
-}
+// NAV
+function volver(){ window.location.href="index.html"; }
+function irHistorico(){ window.location.href="historico.html"; }
 </script>
 
 </body>
