@@ -1,0 +1,200 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="UTF-8">
+<title>Almacén Pro</title>
+
+<link rel="manifest" href="manifest.json">
+<script src="https://unpkg.com/html5-qrcode"></script>
+
+<style>
+body { font-family: Arial; background:#111; color:white; }
+input, button, select { padding:10px; margin:5px; }
+.card { border:1px solid #444; padding:10px; margin:10px; }
+</style>
+</head>
+
+<body>
+
+<!-- LOGIN -->
+<div id="login">
+  <h2>Login</h2>
+  <input id="login_nombre" placeholder="Usuario">
+  <input id="login_pin" type="password" placeholder="PIN">
+  <button onclick="login()">Entrar</button>
+</div>
+
+<div id="app" style="display:none;">
+
+<h2>📦 Almacén</h2>
+
+<div id="dashboard"></div>
+
+<button onclick="iniciarScanner()">📷 Escanear</button>
+<div id="reader" style="width:300px"></div>
+
+<input id="codigo" placeholder="Código o nombre">
+<input id="cantidad" type="number" placeholder="Cantidad">
+
+<button onclick="registrar('entrada')">Entrada</button>
+<button onclick="registrar('salida')">Salida</button>
+<button onclick="modoInventario()">Inventario</button>
+
+<div id="info"></div>
+
+<h3>📊 Histórico</h3>
+<div id="historial"></div>
+
+<h3>🔥 Top</h3>
+<div id="top"></div>
+
+<h3>🤖 Predicción</h3>
+<div id="prediccion"></div>
+
+</div>
+
+<script>
+const API_URL = "https://script.google.com/macros/s/AKfycbz1pfjhiozALAuFcSVdPzzX2LU45QhfFj60gsepn1A2_97VQcIAQPI_q49pi4m6O8JE5g/exec";
+
+let DATA = {};
+let modoInv = false;
+
+// INIT
+window.onload = async () => {
+  await cargarDatos();
+};
+
+// LOGIN
+function login() {
+  const nombre = login_nombre.value;
+  const pin = login_pin.value;
+
+  const user = DATA.usuarios.find(u =>
+    u.nombre === nombre && u.pin == pin && u.activo === "SI"
+  );
+
+  if (!user) return alert("Error");
+
+  localStorage.setItem("usuario", nombre);
+
+  login.style.display = "none";
+  app.style.display = "block";
+}
+
+// CARGA
+async function cargarDatos() {
+  const res = await fetch(API_URL);
+  DATA = await res.json();
+
+  renderDashboard();
+  renderHistorial();
+  renderTop();
+  renderPrediccion();
+}
+
+// SCANNER
+function iniciarScanner() {
+  const scanner = new Html5Qrcode("reader");
+
+  scanner.start({ facingMode: "environment" }, { fps: 10 },
+    (txt) => {
+      codigo.value = txt;
+      scanner.stop();
+      buscar(txt);
+      cantidad.value = 1;
+    });
+}
+
+// BUSCAR
+function buscar(v) {
+  const r = DATA.recambios.find(x =>
+    x.activo === "SI" &&
+    (x.codigo == v || x.codigo_sap == v || x.nombre.toLowerCase().includes(v.toLowerCase()))
+  );
+
+  info.innerHTML = r ? `${r.nombre} | ${r.stock}` : "No encontrado";
+}
+
+// REGISTRAR
+function registrar(tipo) {
+  const data = {
+    codigo: codigo.value,
+    tipo,
+    usuario: localStorage.getItem("usuario"),
+    cantidad: cantidad.value
+  };
+
+  if (modoInv) data.inventario = true;
+
+  fetch(API_URL, {
+    method:"POST",
+    body: JSON.stringify(data)
+  })
+  .catch(() => guardarOffline(data));
+
+  cargarDatos();
+}
+
+// OFFLINE
+function guardarOffline(d) {
+  let p = JSON.parse(localStorage.getItem("p")||"[]");
+  p.push(d);
+  localStorage.setItem("p", JSON.stringify(p));
+}
+
+// DASHBOARD
+function renderDashboard() {
+  dashboard.innerHTML = `
+    Stock bajo: ${DATA.recambios.filter(r=>r.stock<r.min).length}
+  `;
+}
+
+// HISTORIAL
+function renderHistorial() {
+  historial.innerHTML = DATA.movimientos.slice(-10).map(m =>
+    `${m.codigo} ${m.tipo} ${m.cantidad}`
+  ).join("<br>");
+}
+
+// TOP
+function renderTop() {
+  let uso = {};
+  DATA.movimientos.forEach(m=>{
+    if(m.tipo==="salida")
+      uso[m.codigo]=(uso[m.codigo]||0)+Number(m.cantidad);
+  });
+
+  top.innerHTML = Object.entries(uso)
+    .sort((a,b)=>b[1]-a[1])
+    .slice(0,5)
+    .map(t=>t.join(" → "))
+    .join("<br>");
+}
+
+// IA
+function renderPrediccion() {
+  prediccion.innerHTML = DATA.recambios.map(r=>{
+    let c = DATA.movimientos
+      .filter(m=>m.codigo==r.codigo && m.tipo==="salida")
+      .reduce((a,b)=>a+Number(b.cantidad),0);
+
+    let d = c>0 ? Math.round(r.stock/(c/30)) : "∞";
+
+    return `${r.nombre}: ${d} días`;
+  }).join("<br>");
+}
+
+// INVENTARIO
+function modoInventario() {
+  modoInv = !modoInv;
+  alert("Inventario: "+modoInv);
+}
+
+// PWA
+if ("serviceWorker" in navigator) {
+  navigator.serviceWorker.register("sw.js");
+}
+</script>
+
+</body>
+</html>
