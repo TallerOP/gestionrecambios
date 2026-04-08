@@ -55,6 +55,18 @@ button {
 
 .btn { background:#ddd; }
 
+/* FILTROS */
+.filtros {
+  display:flex;
+  gap:5px;
+  margin:10px 0;
+}
+
+.filtros button {
+  flex:1;
+  font-size:12px;
+}
+
 /* BUSCADOR */
 #buscador {
   width:100%;
@@ -84,18 +96,19 @@ button {
   border-bottom:1px solid rgba(0,0,0,0.3);
 }
 
-/* HEADER FIJO */
+/* HEADER FIJO PERFECTO */
 .table thead th {
   position: sticky;
-  top: 80px;
+  top: 90px; /* 👈 ajustado al header */
   background:#f5f5f5;
   z-index:500;
 }
 
-/* ALERTAS */
+/* COLORES */
 .bajo { background:#ffb3b3; }
 .alto { background:#ffd699; }
 .critico { background:#fff3b0; font-weight:bold; }
+
 </style>
 </head>
 
@@ -112,6 +125,14 @@ button {
 <button onclick="irHistorico()" class="btn">📊 Histórico</button>
 
 <input id="buscador" placeholder="Buscar..." oninput="filtrar()">
+
+<!-- FILTROS -->
+<div class="filtros">
+  <button onclick="setFiltro('todos')">Todos</button>
+  <button onclick="setFiltro('criticos')">Críticos</button>
+  <button onclick="setFiltro('bajo')">Bajo</button>
+  <button onclick="setFiltro('alto')">Alto</button>
+</div>
 
 <table class="table">
 <thead>
@@ -131,26 +152,63 @@ button {
 </div>
 
 <script>
-const API_URL = "https://script.google.com/macros/s/AKfycbxyURi4bcmWwsaZ4vdXUUVnr_Xu7y9BRG75tITfdwh-zgSIFpvC2lyKJLTT3XTFNS5XZA/exec?v=12";
+const API_URL = "https://script.google.com/macros/s/AKfycbxyURi4bcmWwsaZ4vdXUUVnr_Xu7y9BRG75tITfdwh-zgSIFpvC2lyKJLTT3XTFNS5XZA/exec?v=13";
 
-// 🔐 SESIÓN
+// SESIÓN
 let sesion = JSON.parse(localStorage.getItem("sesion"));
 if (!sesion) window.location.href="index.html";
 
-// 🔁 refresca sesión
 sesion.timestamp = Date.now();
 localStorage.setItem("sesion", JSON.stringify(sesion));
 
 let DATA = [];
 let FILTRADOS = [];
+let filtroActual = "todos";
 
 window.onload = async () => {
   const res = await fetch(API_URL);
   const json = await res.json();
   DATA = json.recambios;
-  FILTRADOS = DATA;
-  render();
+  aplicarFiltros();
 };
+
+// FILTRO BOTONES
+function setFiltro(f) {
+  filtroActual = f;
+  aplicarFiltros();
+}
+
+// FILTRADO COMPLETO
+function aplicarFiltros() {
+  let v = buscador.value?.toLowerCase() || "";
+
+  FILTRADOS = DATA.filter(r => {
+
+    const matchBusqueda =
+      r.codigo.toLowerCase().includes(v) ||
+      r.nombre.toLowerCase().includes(v);
+
+    let matchFiltro = true;
+
+    if (filtroActual === "criticos")
+      matchFiltro = (r.critico || "").toUpperCase() === "SI";
+
+    if (filtroActual === "bajo")
+      matchFiltro = Number(r.stock) < Number(r.min);
+
+    if (filtroActual === "alto")
+      matchFiltro = Number(r.stock) > Number(r.max);
+
+    return matchBusqueda && matchFiltro;
+  });
+
+  render();
+}
+
+// BUSCADOR
+function filtrar() {
+  aplicarFiltros();
+}
 
 // RENDER
 function render() {
@@ -174,18 +232,6 @@ function render() {
       </tr>
     `;
   }).join("");
-}
-
-// FILTRO
-function filtrar() {
-  const v = buscador.value.toLowerCase();
-
-  FILTRADOS = DATA.filter(r =>
-    r.codigo.toLowerCase().includes(v) ||
-    r.nombre.toLowerCase().includes(v)
-  );
-
-  render();
 }
 
 // NAV
