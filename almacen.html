@@ -2,7 +2,7 @@
 <html>
 <head>
 <meta charset="UTF-8">
-<title>Gestión de recambios OP Pedrola</title>
+<title>Almacén</title>
 
 <meta name="viewport" content="width=device-width, initial-scale=1">
 
@@ -26,7 +26,7 @@ body::before {
   z-index:-1;
 }
 
-/* HEADER PRO */
+/* HEADER */
 .header {
   position: sticky;
   top: 0;
@@ -40,27 +40,19 @@ body::before {
   padding: 12px 10px;
 
   box-shadow: 0 2px 8px rgba(0,0,0,0.08);
-  border-bottom: 1px solid #eee;
 }
 
-.header img {
-  height: 42px;
-  margin-bottom: 4px;
-}
+.header img { height:42px; }
 
 .header h3 {
-  font-size: 18px;
-  font-weight: 600;
-  margin: 0;
-  text-align: center;
+  margin:0;
+  font-size:18px;
 }
 
-/* CONTENEDOR */
-.container {
-  padding:15px;
-}
+/* CONTENIDO */
+.container { padding:15px; }
 
-/* BOTÓN */
+/* BOTONES */
 button {
   padding:10px;
   border:none;
@@ -68,13 +60,11 @@ button {
   cursor:pointer;
 }
 
-.btn {
-  background:#ddd;
-}
+.btn { background:#ddd; }
 
 .btn-edit {
-  background:#22c55e;
-  color:black;
+  background:#0E3471;
+  color:white;
 }
 
 /* TABLA */
@@ -84,23 +74,17 @@ button {
   font-size:14px;
 }
 
-/* FILAS */
 .table tr {
-  border-bottom:1px solid rgba(0,0,0,0.3); /* 30% */
+  border-bottom:1px solid rgba(0,0,0,0.3);
 }
 
-/* COLUMNAS */
 .table td, .table th {
   padding:8px;
-  border-right:1px solid rgba(0,0,0,0.05); /* 5% */
-  text-align:left;
+  border-right:1px solid rgba(0,0,0,0.05);
 }
 
-/* HEADER TABLA */
 .table th {
   background:#f5f5f5;
-  position:sticky;
-  top:80px;
 }
 
 /* CRÍTICOS */
@@ -108,12 +92,38 @@ button {
   background:#fff3b0;
   font-weight:bold;
 }
+
+/* MODAL */
+.modal {
+  position:fixed;
+  top:0;
+  left:0;
+  width:100%;
+  height:100%;
+  background:rgba(0,0,0,0.5);
+  display:none;
+  align-items:center;
+  justify-content:center;
+}
+
+.modal-content {
+  background:white;
+  padding:20px;
+  width:90%;
+  max-width:400px;
+  border-radius:10px;
+}
+
+input {
+  width:100%;
+  padding:10px;
+  margin:5px 0;
+}
 </style>
 </head>
 
 <body>
 
-<!-- HEADER -->
 <div class="header">
   <img src="op.png">
   <h3>Gestión de recambios OP Mobility Pedrola</h3>
@@ -126,61 +136,118 @@ button {
 <h3>Listado de recambios</h3>
 
 <table class="table">
-  <thead>
-    <tr>
-      <th>Código</th>
-      <th>Nombre</th>
-      <th>Ubicación</th>
-      <th>Stock</th>
-      <th>Mín</th>
-      <th>Máx</th>
-      <th>Crítico</th>
-      <th></th>
-    </tr>
-  </thead>
-  <tbody id="tabla"></tbody>
+<thead>
+<tr>
+<th>Código</th>
+<th>Nombre</th>
+<th>Ubicación</th>
+<th>Stock</th>
+<th>Mín</th>
+<th>Máx</th>
+<th>Crítico</th>
+<th></th>
+</tr>
+</thead>
+<tbody id="tabla"></tbody>
 </table>
 
 </div>
 
-<script>
-const API_URL = "https://script.google.com/macros/s/AKfycbxyURi4bcmWwsaZ4vdXUUVnr_Xu7y9BRG75tITfdwh-zgSIFpvC2lyKJLTT3XTFNS5XZA/exec?v=9";
+<!-- MODAL -->
+<div id="modal" class="modal">
+  <div class="modal-content">
+    <h3>Editar recambio</h3>
 
-// 🔐 CONTROL SESIÓN
-const sesion = JSON.parse(localStorage.getItem("sesion"));
+    <input id="e_codigo" readonly>
+    <input id="e_nombre" placeholder="Nombre">
+    <input id="e_ubicacion" placeholder="Ubicación">
+    <input id="e_min" type="number" placeholder="Min">
+    <input id="e_max" type="number" placeholder="Max">
+    <input id="e_critico" placeholder="SI / NO">
+
+    <button onclick="guardar()">Guardar</button>
+    <button onclick="cerrar()">Cancelar</button>
+  </div>
+</div>
+
+<script>
+const API_URL = "https://script.google.com/macros/s/AKfycbxyURi4bcmWwsaZ4vdXUUVnr_Xu7y9BRG75tITfdwh-zgSIFpvC2lyKJLTT3XTFNS5XZA/exec?v=10";
+
+// 🔐 SESIÓN
+let sesion = JSON.parse(localStorage.getItem("sesion"));
 if (!sesion) window.location.href = "index.html";
 
+// 🔁 REFRESCA SESIÓN (SOLUCIÓN LOGIN)
+sesion.timestamp = Date.now();
+localStorage.setItem("sesion", JSON.stringify(sesion));
+
 let DATA = [];
+let actual = null;
 
 window.onload = async () => {
   const res = await fetch(API_URL);
   const json = await res.json();
-
   DATA = json.recambios;
   render();
 };
 
+// RENDER
 function render() {
-  document.getElementById("tabla").innerHTML =
-    DATA.map(r => `
-      <tr class="${r.criticos === 'SI' ? 'critico' : ''}">
-        <td>${r.codigo}</td>
-        <td>${r.nombre}</td>
-        <td>${r.ubicacion || ''}</td>
-        <td>${r.stock}</td>
-        <td>${r.min}</td>
-        <td>${r.max}</td>
-        <td>${r.criticos}</td>
-        <td><button class="btn-edit" onclick="editar('${r.codigo}')">✏️</button></td>
-      </tr>
-    `).join("");
+  tabla.innerHTML = DATA.map(r => `
+    <tr class="${(r.critico || '').toUpperCase() === 'SI' ? 'critico' : ''}">
+      <td>${r.codigo}</td>
+      <td>${r.nombre}</td>
+      <td>${r.ubicacion || ''}</td>
+      <td>${r.stock}</td>
+      <td>${r.min}</td>
+      <td>${r.max}</td>
+      <td>${r.critico || ''}</td>
+      <td><button class="btn-edit" onclick="editar('${r.codigo}')">✏️</button></td>
+    </tr>
+  `).join("");
 }
 
+// EDITAR
 function editar(codigo) {
-  alert("Editar recambio: " + codigo);
-  // 👉 Aquí luego conectamos edición real
+  actual = DATA.find(r => r.codigo == codigo);
+
+  e_codigo.value = actual.codigo;
+  e_nombre.value = actual.nombre;
+  e_ubicacion.value = actual.ubicacion;
+  e_min.value = actual.min;
+  e_max.value = actual.max;
+  e_critico.value = actual.critico;
+
+  modal.style.display = "flex";
 }
 
+// GUARDAR
+function guardar() {
+  const data = {
+    accion: "editarRecambio",
+    codigo: e_codigo.value,
+    nombre: e_nombre.value,
+    ubicacion: e_ubicacion.value,
+    min: e_min.value,
+    max: e_max.value,
+    critico: e_critico.value
+  };
+
+  fetch(API_URL, {
+    method:"POST",
+    body: JSON.stringify(data)
+  });
+
+  cerrar();
+  location.reload();
+}
+
+// CERRAR
+function cerrar() {
+  modal.style.display = "none";
+}
+
+// VOLVER
 function volver() {
   window.location.href = "index.html";
 }
