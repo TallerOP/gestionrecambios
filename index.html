@@ -17,14 +17,35 @@ input, button, select { padding:10px; margin:5px; }
 <body>
 
 <!-- LOGIN -->
-<div id="login">
-  <h2>Login</h2>
-  <input id="login_nombre" placeholder="Usuario">
-  <input id="login_pin" type="password" placeholder="PIN">
-  <button onclick="login()">Entrar</button>
-</div>
+function login() {
 
-<div id="app" style="display:none;">
+  const loginDiv = document.getElementById("login");
+  const appDiv = document.getElementById("app");
+
+  if (!loginDiv || !appDiv) {
+    alert("Error: HTML no correcto (login/app no encontrados)");
+    return;
+  }
+
+  const nombre = document.getElementById("login_nombre").value.trim();
+  const pin = document.getElementById("login_pin").value.trim();
+
+  const user = DATA.usuarios.find(u =>
+    String(u.nombre).trim() === nombre &&
+    String(u.pin).trim() === pin &&
+    String(u.activo).trim().toUpperCase() === "SI"
+  );
+
+  if (!user) {
+    alert("❌ Usuario o PIN incorrecto");
+    return;
+  }
+
+  localStorage.setItem("usuario", nombre);
+
+  loginDiv.style.display = "none";
+  appDiv.style.display = "block";
+}
 
 <h2>📦 Almacén</h2>
 
