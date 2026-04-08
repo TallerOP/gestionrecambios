@@ -14,6 +14,39 @@ body {
   margin:0;
   background:white;
   color:black;
+  position:relative;
+}
+
+/* FONDO LOGO */
+body::before {
+  content:"";
+  position:fixed;
+  top:0;
+  left:0;
+  width:100%;
+  height:100%;
+  background:url("op.png") center no-repeat;
+  background-size:60%;
+  opacity:0.1;
+  z-index:-1;
+}
+
+/* HEADER */
+.header {
+  display:flex;
+  align-items:center;
+  gap:10px;
+  padding:10px;
+  border-bottom:1px solid #ccc;
+}
+
+.header img {
+  height:40px;
+}
+
+.header h1 {
+  font-size:16px;
+  margin:0;
 }
 
 /* SCANNER */
@@ -28,12 +61,12 @@ body {
   width:100%;
 }
 
-/* CONTENEDOR */
+/* CONTENIDO */
 .container {
   padding:15px;
 }
 
-/* INPUTS FULL WIDTH REAL */
+/* INPUTS */
 input {
   width:100%;
   padding:15px;
@@ -44,6 +77,10 @@ input {
   box-sizing:border-box;
 }
 
+input[readonly] {
+  background:#f3f3f3;
+}
+
 /* BOTONES */
 button {
   width:100%;
@@ -51,12 +88,10 @@ button {
   font-size:16px;
   border:none;
   border-radius:10px;
-  cursor:pointer; /* 👈 cursor PC */
+  cursor:pointer;
 }
 
-button:hover {
-  opacity:0.9;
-}
+button:hover { opacity:0.9; }
 
 .btn { background:#ddd; }
 .btn-ok { background:#22c55e; }
@@ -100,6 +135,12 @@ button:hover {
 <!-- APP -->
 <div id="app" style="display:none;">
 
+<!-- HEADER -->
+<div class="header">
+  <img src="op.png">
+  <h1>Gestión de recambios OP Mobility Pedrola</h1>
+</div>
+
 <!-- SCANNER -->
 <div id="scannerBox">
   <button onclick="iniciarScanner()" class="btn">📷 Escanear</button>
@@ -108,10 +149,12 @@ button:hover {
 
 <div class="container">
 
-<input id="codigo" placeholder="Código">
+<input id="codigo" placeholder="Código" oninput="buscarRecambio()">
+
+<input id="nombre" placeholder="Nombre recambio" readonly>
+
 <input id="cantidad" type="number" value="1">
 <input id="ot" placeholder="OT">
-<input id="obs" placeholder="Observaciones">
 
 <div class="grid">
   <button onclick="registrar('entrada')" class="btn-ok">Entrada</button>
@@ -131,33 +174,27 @@ button:hover {
 </div>
 
 <script>
-const API_URL = "https://script.google.com/macros/s/AKfycbxyURi4bcmWwsaZ4vdXUUVnr_Xu7y9BRG75tITfdwh-zgSIFpvC2lyKJLTT3XTFNS5XZA/exec?v=5";
+const API_URL = "https://script.google.com/macros/s/AKfycbxyURi4bcmWwsaZ4vdXUUVnr_Xu7y9BRG75tITfdwh-zgSIFpvC2lyKJLTT3XTFNS5XZA/exec?v=6";
 
 let DATA = {};
 let scanner = null;
 
-// SONIDO
 const beep = new Audio("https://actions.google.com/sounds/v1/cartoon/clang_and_wobble.ogg");
 
 // INIT
 window.onload = async () => {
   await cargarDatos();
-
   document.getElementById("btnLogin").addEventListener("click", login);
-
   checkSesion();
 };
 
 // SESIÓN
 function checkSesion() {
   const sesion = JSON.parse(localStorage.getItem("sesion"));
-
   if (!sesion) return;
 
   const ahora = Date.now();
-  const duracion = 8 * 60 * 60 * 1000;
-
-  if (ahora - sesion.timestamp < duracion) {
+  if (ahora - sesion.timestamp < 28800000) {
     entrarApp();
   } else {
     localStorage.removeItem("sesion");
@@ -166,8 +203,8 @@ function checkSesion() {
 
 // LOGIN
 function login() {
-  const nombre = document.getElementById("login_nombre").value.trim();
-  const pin = document.getElementById("login_pin").value.trim();
+  const nombre = login_nombre.value.trim();
+  const pin = login_pin.value.trim();
 
   const user = DATA.usuarios.find(u =>
     String(u.nombre).trim() === nombre &&
@@ -187,8 +224,8 @@ function login() {
 
 // UI
 function entrarApp() {
-  document.getElementById("login").style.display="none";
-  document.getElementById("app").style.display="block";
+  login.style.display="none";
+  app.style.display="block";
 }
 
 // LOGOUT
@@ -197,19 +234,21 @@ function logout() {
   location.reload();
 }
 
-// NAV
-function irHistorico() {
-  window.location.href = "historico.html";
-}
-
-function irAlmacen() {
-  window.location.href = "almacen.html";
-}
-
 // DATA
 async function cargarDatos() {
   const res = await fetch(API_URL);
   DATA = await res.json();
+}
+
+// BUSCAR RECAMBIO
+function buscarRecambio() {
+  const cod = document.getElementById("codigo").value;
+
+  const r = DATA.recambios.find(x =>
+    x.codigo == cod || x.codigo_sap == cod
+  );
+
+  document.getElementById("nombre").value = r ? r.nombre : "";
 }
 
 // SCANNER
@@ -219,7 +258,8 @@ function iniciarScanner() {
   scanner.start({ facingMode:"environment" }, { fps:10 },
     (txt) => {
       document.getElementById("codigo").value = txt;
-      beep.play(); // 🔊 sonido escaneo
+      buscarRecambio();
+      beep.play();
       scanner.stop();
       document.getElementById("cantidad").focus();
     });
@@ -230,12 +270,11 @@ function registrar(tipo) {
   const sesion = JSON.parse(localStorage.getItem("sesion"));
 
   const data = {
-    codigo: document.getElementById("codigo").value,
+    codigo: codigo.value,
     tipo,
     usuario: sesion?.usuario || "desconocido",
-    cantidad: document.getElementById("cantidad").value,
-    orden: document.getElementById("ot").value,
-    observaciones: document.getElementById("obs").value
+    cantidad: cantidad.value,
+    orden: ot.value
   };
 
   fetch(API_URL, {
@@ -243,20 +282,22 @@ function registrar(tipo) {
     body: JSON.stringify(data)
   });
 
-  beep.play(); // 🔊 sonido registro
-
-  limpiarCampos();
+  beep.play();
+  limpiar();
 }
 
-// LIMPIEZA + FOCO
-function limpiarCampos() {
-  document.getElementById("codigo").value = "";
-  document.getElementById("cantidad").value = 1;
-  document.getElementById("ot").value = "";
-  document.getElementById("obs").value = "";
-
-  document.getElementById("codigo").focus();
+// LIMPIAR
+function limpiar() {
+  codigo.value="";
+  nombre.value="";
+  cantidad.value=1;
+  ot.value="";
+  codigo.focus();
 }
+
+// NAV
+function irHistorico() { window.location.href="historico.html"; }
+function irAlmacen() { window.location.href="almacen.html"; }
 </script>
 
 </body>
