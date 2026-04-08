@@ -1,0 +1,214 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="UTF-8">
+<title>Almacén PRO</title>
+
+<script src="https://unpkg.com/html5-qrcode"></script>
+
+<style>
+body {
+  margin:0;
+  font-family:system-ui;
+  background:#0f172a;
+  color:white;
+}
+
+.container { padding:15px; }
+
+.card {
+  background:#1e293b;
+  border-radius:12px;
+  padding:15px;
+  margin:10px 0;
+}
+
+input, button {
+  width:100%;
+  padding:15px;
+  margin:5px 0;
+  border:none;
+  border-radius:10px;
+  font-size:16px;
+}
+
+button { cursor:pointer; }
+
+.btn-ok { background:#22c55e; color:black; }
+.btn-out { background:#ef4444; color:white; }
+.btn-sec { background:#334155; color:white; }
+
+.grid {
+  display:grid;
+  grid-template-columns:1fr 1fr;
+  gap:10px;
+}
+</style>
+</head>
+
+<body>
+
+<!-- LOGIN -->
+<div id="login" class="container">
+  <h2>Login</h2>
+  <input id="login_nombre" placeholder="Usuario">
+  <input id="login_pin" type="password" placeholder="PIN">
+  <button id="btnLogin" class="btn-ok">Entrar</button>
+</div>
+
+<!-- APP -->
+<div id="app" style="display:none;" class="container">
+
+<h2>📦 Almacén</h2>
+
+<button onclick="logout()" class="btn-out">Salir</button>
+
+<div class="card" id="dashboard"></div>
+
+<div class="card">
+
+<button onclick="iniciarScanner()" class="btn-sec">📷 Escanear</button>
+<div id="reader"></div>
+
+<input id="codigo" placeholder="Código">
+<input id="cantidad" type="number" value="1">
+
+<input id="ot" placeholder="OT (orden de trabajo)">
+<input id="obs" placeholder="Observaciones">
+
+<div class="grid">
+  <button onclick="registrar('entrada')" class="btn-ok">Entrada</button>
+  <button onclick="registrar('salida')" class="btn-out">Salida</button>
+</div>
+
+<div id="info"></div>
+
+</div>
+
+<div class="card">
+<h3>Histórico</h3>
+<div id="historial"></div>
+</div>
+
+</div>
+
+<script>
+const API_URL = "https://script.google.com/macros/s/AKfycbxyURi4bcmWwsaZ4vdXUUVnr_Xu7y9BRG75tITfdwh-zgSIFpvC2lyKJLTT3XTFNS5XZA/exec";
+
+let DATA = {};
+let scanner = null;
+
+// INIT
+window.onload = async () => {
+  await cargarDatos();
+
+  document.getElementById("btnLogin").addEventListener("click", login);
+
+  const sesion = JSON.parse(localStorage.getItem("sesion"));
+
+  if (sesion) {
+    const ahora = Date.now();
+    const duracion = 8 * 60 * 60 * 1000;
+
+    if (ahora - sesion.timestamp < duracion) {
+      entrarApp();
+    } else {
+      localStorage.removeItem("sesion");
+    }
+  }
+};
+
+// LOGIN (ROBUSTO)
+function login() {
+  const nombre = document.getElementById("login_nombre").value.trim();
+  const pin = document.getElementById("login_pin").value.trim();
+
+  if (!DATA.usuarios) {
+    alert("Datos no cargados");
+    return;
+  }
+
+  const user = DATA.usuarios.find(u =>
+    String(u.nombre).trim() === nombre &&
+    String(u.pin).trim() === pin &&
+    String(u.activo).trim().toUpperCase() === "SI"
+  );
+
+  if (!user) {
+    alert("❌ Usuario o PIN incorrecto");
+    return;
+  }
+
+  localStorage.setItem("sesion", JSON.stringify({
+    usuario: nombre,
+    timestamp: Date.now()
+  }));
+
+  entrarApp();
+}
+
+// ENTRAR APP (SIN ERRORES)
+function entrarApp() {
+  document.getElementById("login").style.display = "none";
+  document.getElementById("app").style.display = "block";
+}
+
+// LOGOUT
+function logout() {
+  localStorage.removeItem("sesion");
+  location.reload();
+}
+
+// CARGAR DATOS
+async function cargarDatos() {
+  const res = await fetch(API_URL);
+  DATA = await res.json();
+  render();
+}
+
+// RENDER
+function render() {
+  document.getElementById("dashboard").innerHTML =
+    "Stock bajo: " + DATA.recambios.filter(r=>r.stock<r.min).length;
+
+  document.getElementById("historial").innerHTML =
+    DATA.movimientos.slice(-10)
+      .map(m=>`${m.codigo} | ${m.tipo} | ${m.cantidad}`)
+      .join("<br>");
+}
+
+// SCANNER (MANUAL)
+function iniciarScanner() {
+  scanner = new Html5Qrcode("reader");
+
+  scanner.start({ facingMode:"environment" }, { fps:10 },
+    (txt) => {
+      document.getElementById("codigo").value = txt;
+      scanner.stop();
+    });
+}
+
+// REGISTRAR
+function registrar(tipo) {
+  const sesion = JSON.parse(localStorage.getItem("sesion"));
+
+  const data = {
+    codigo: document.getElementById("codigo").value,
+    tipo: tipo,
+    usuario: sesion?.usuario || "desconocido",
+    cantidad: document.getElementById("cantidad").value,
+    orden: document.getElementById("ot").value,
+    observaciones: document.getElementById("obs").value
+  };
+
+  fetch(API_URL, {
+    method:"POST",
+    body: JSON.stringify(data)
+  });
+
+  cargarDatos();
+}
+</script>
+
+</body>
+</html>

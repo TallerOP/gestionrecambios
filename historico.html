@@ -1,0 +1,53 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="UTF-8">
+<title>Histórico</title>
+
+<style>
+body { font-family: Arial; background:white; color:black; }
+.container { padding:20px; }
+.item { padding:10px; border-bottom:1px solid #ccc; }
+</style>
+</head>
+
+<body>
+
+<div class="container">
+
+<button onclick="volver()">⬅ Volver</button>
+
+<h2>Histórico</h2>
+
+<div id="lista"></div>
+
+</div>
+
+<script>
+const API_URL = "https://script.google.com/macros/s/AKfycbxyURi4bcmWwsaZ4vdXUUVnr_Xu7y9BRG75tITfdwh-zgSIFpvC2lyKJLTT3XTFNS5XZA/exec?v=2";
+
+let DATA = {};
+
+window.onload = async () => {
+  await cargar();
+};
+
+async function cargar() {
+  const res = await fetch(API_URL);
+  DATA = await res.json();
+
+  document.getElementById("lista").innerHTML =
+    DATA.movimientos.map(m =>
+      `<div class="item">
+        ${m.codigo} | ${m.tipo} | ${m.cantidad} | ${m.usuario}
+      </div>`
+    ).join("");
+}
+
+function volver() {
+  window.location.href = "index.html";
+}
+</script>
+
+</body>
+</html>

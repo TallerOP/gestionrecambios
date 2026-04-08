@@ -1,0 +1,85 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="UTF-8">
+<title>Almacén</title>
+
+<style>
+body { font-family: Arial; background:white; color:black; }
+.container { padding:20px; }
+
+input {
+  width:100%;
+  padding:10px;
+  margin:10px 0;
+}
+
+.item {
+  padding:10px;
+  border-bottom:1px solid #ccc;
+}
+
+.critico {
+  color:orange;
+  font-weight:bold;
+}
+</style>
+</head>
+
+<body>
+
+<div class="container">
+
+<button onclick="volver()">⬅ Volver</button>
+
+<h2>Almacén</h2>
+
+<input id="buscador" placeholder="Buscar..." onkeyup="filtrar()">
+
+<div id="lista"></div>
+
+</div>
+
+<script>
+const API_URL = "https://script.google.com/macros/s/AKfycbxyURi4bcmWwsaZ4vdXUUVnr_Xu7y9BRG75tITfdwh-zgSIFpvC2lyKJLTT3XTFNS5XZA/exec?v=2";
+
+let DATA = [];
+let FILTRADO = [];
+
+window.onload = async () => {
+  const res = await fetch(API_URL);
+  const json = await res.json();
+
+  DATA = json.recambios;
+  FILTRADO = DATA;
+
+  render();
+};
+
+function render() {
+  document.getElementById("lista").innerHTML =
+    FILTRADO.map(r => `
+      <div class="item ${r.criticos==='SI' ? 'critico':''}">
+        ${r.codigo} | ${r.nombre} | Stock: ${r.stock}
+      </div>
+    `).join("");
+}
+
+function filtrar() {
+  const v = document.getElementById("buscador").value.toLowerCase();
+
+  FILTRADO = DATA.filter(r =>
+    r.codigo.toLowerCase().includes(v) ||
+    r.nombre.toLowerCase().includes(v)
+  );
+
+  render();
+}
+
+function volver() {
+  window.location.href = "index.html";
+}
+</script>
+
+</body>
+</html>
