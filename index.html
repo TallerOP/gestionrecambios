@@ -24,20 +24,30 @@ body::before {
   height:100%;
   background:url("op.png") center no-repeat;
   background-size:60%;
-  opacity:0.1;
+  opacity:0.3;
   z-index:-1;
 }
 
 /* HEADER */
 .header {
   display:flex;
-  align-items:center;
-  gap:10px;
-  padding:10px;
+  flex-direction:column; /* 👈 coloca logo arriba y texto debajo */
+  align-items:center;   /* 👈 centra todo */
+  justify-content:center;
+  text-align:center;
+  padding:15px 10px;
   border-bottom:1px solid #ccc;
 }
 
-.header img { height:40px; }
+.header img {
+  height:50px; /* 👈 un poco más grande */
+  margin-bottom:5px;
+}
+
+.header h3 {
+  font-size:20px; /* 👈 texto más grande */
+  margin:0;
+}
 
 /* SCANNER */
 #scannerBox {
