@@ -2,15 +2,16 @@
 <html>
 <head>
 <meta charset="UTF-8">
-<title>Almacén</title>
+<title>Almacén Pro</title>
 
 <link rel="manifest" href="manifest.json">
 <script src="https://unpkg.com/html5-qrcode"></script>
 
 <style>
 body { font-family: Arial; background:#111; color:white; }
-input, button, select { padding:10px; margin:5px; }
+input, button { padding:10px; margin:5px; }
 .card { border:1px solid #444; padding:10px; margin:10px; }
+button { cursor:pointer; }
 </style>
 </head>
 
@@ -21,9 +22,15 @@ input, button, select { padding:10px; margin:5px; }
   <h2>Login</h2>
   <input id="login_nombre" placeholder="Usuario">
   <input id="login_pin" type="password" placeholder="PIN">
-  <button onclick="login()">Entrar</button>
+  <button id="btnLogin">Entrar</button>
 </div>
+
+<!-- APP -->
+<div id="app" style="display:none;">
+
 <h2>📦 Almacén</h2>
+
+<button onclick="logout()">🚪 Salir</button>
 
 <div id="dashboard"></div>
 
@@ -31,7 +38,7 @@ input, button, select { padding:10px; margin:5px; }
 <div id="reader" style="width:300px"></div>
 
 <input id="codigo" placeholder="Código o nombre">
-<input id="cantidad" type="number" placeholder="Cantidad">
+<input id="cantidad" type="number" placeholder="Cantidad" value="1">
 
 <button onclick="registrar('entrada')">Entrada</button>
 <button onclick="registrar('salida')">Salida</button>
@@ -55,23 +62,31 @@ const API_URL = "https://script.google.com/macros/s/AKfycbxyURi4bcmWwsaZ4vdXUUVn
 
 let DATA = {};
 let modoInv = false;
+let intentosFallidos = 0;
 
 // INIT
 window.onload = async () => {
   await cargarDatos();
+
+  document.getElementById("btnLogin").addEventListener("click", login);
+
+  const sesion = JSON.parse(localStorage.getItem("sesion"));
+
+  if (sesion) {
+    const ahora = Date.now();
+    const duracion = 8 * 60 * 60 * 1000;
+
+    if (ahora - sesion.timestamp < duracion) {
+      entrarApp();
+      return;
+    } else {
+      localStorage.removeItem("sesion");
+    }
+  }
 };
 
 // LOGIN
 function login() {
-
-  const loginDiv = document.getElementById("login");
-  const appDiv = document.getElementById("app");
-
-  if (!loginDiv || !appDiv) {
-    alert("Error: HTML no correcto (login/app no encontrados)");
-    return;
-  }
-
   const nombre = document.getElementById("login_nombre").value.trim();
   const pin = document.getElementById("login_pin").value.trim();
 
@@ -82,17 +97,42 @@ function login() {
   );
 
   if (!user) {
+    intentosFallidos++;
+
+    if (intentosFallidos >= 3) {
+      alert("🚫 Demasiados intentos. Espera 30 segundos");
+      setTimeout(() => intentosFallidos = 0, 30000);
+      return;
+    }
+
     alert("❌ Usuario o PIN incorrecto");
     return;
   }
 
-  localStorage.setItem("usuario", nombre);
+  intentosFallidos = 0;
 
-  loginDiv.style.display = "none";
-  appDiv.style.display = "block";
+  const sesion = {
+    usuario: nombre,
+    timestamp: Date.now()
+  };
+
+  localStorage.setItem("sesion", JSON.stringify(sesion));
+
+  entrarApp();
 }
 
-// CARGA
+// ENTRAR / SALIR
+function entrarApp() {
+  document.getElementById("login").style.display = "none";
+  document.getElementById("app").style.display = "block";
+}
+
+function logout() {
+  localStorage.removeItem("sesion");
+  location.reload();
+}
+
+// CARGA DATOS
 async function cargarDatos() {
   const res = await fetch(API_URL);
   DATA = await res.json();
@@ -109,10 +149,9 @@ function iniciarScanner() {
 
   scanner.start({ facingMode: "environment" }, { fps: 10 },
     (txt) => {
-      codigo.value = txt;
+      document.getElementById("codigo").value = txt;
       scanner.stop();
       buscar(txt);
-      cantidad.value = 1;
     });
 }
 
@@ -123,16 +162,19 @@ function buscar(v) {
     (x.codigo == v || x.codigo_sap == v || x.nombre.toLowerCase().includes(v.toLowerCase()))
   );
 
-  info.innerHTML = r ? `${r.nombre} | ${r.stock}` : "No encontrado";
+  document.getElementById("info").innerHTML =
+    r ? `${r.nombre} | Stock: ${r.stock}` : "No encontrado";
 }
 
 // REGISTRAR
 function registrar(tipo) {
+  const sesion = JSON.parse(localStorage.getItem("sesion"));
+
   const data = {
-    codigo: codigo.value,
+    codigo: document.getElementById("codigo").value,
     tipo,
-    usuario: localStorage.getItem("usuario"),
-    cantidad: cantidad.value
+    usuario: sesion?.usuario || "desconocido",
+    cantidad: document.getElementById("cantidad").value
   };
 
   if (modoInv) data.inventario = true;
@@ -155,50 +197,53 @@ function guardarOffline(d) {
 
 // DASHBOARD
 function renderDashboard() {
-  dashboard.innerHTML = `
-    Stock bajo: ${DATA.recambios.filter(r=>r.stock<r.min).length}
-  `;
+  document.getElementById("dashboard").innerHTML =
+    `Stock bajo: ${DATA.recambios.filter(r=>r.stock<r.min).length}`;
 }
 
 // HISTORIAL
 function renderHistorial() {
-  historial.innerHTML = DATA.movimientos.slice(-10).map(m =>
-    `${m.codigo} ${m.tipo} ${m.cantidad}`
-  ).join("<br>");
+  document.getElementById("historial").innerHTML =
+    DATA.movimientos.slice(-10).map(m =>
+      `${m.codigo} ${m.tipo} ${m.cantidad}`
+    ).join("<br>");
 }
 
 // TOP
 function renderTop() {
   let uso = {};
+
   DATA.movimientos.forEach(m=>{
     if(m.tipo==="salida")
       uso[m.codigo]=(uso[m.codigo]||0)+Number(m.cantidad);
   });
 
-  top.innerHTML = Object.entries(uso)
-    .sort((a,b)=>b[1]-a[1])
-    .slice(0,5)
-    .map(t=>t.join(" → "))
-    .join("<br>");
+  document.getElementById("top").innerHTML =
+    Object.entries(uso)
+      .sort((a,b)=>b[1]-a[1])
+      .slice(0,5)
+      .map(t=>t.join(" → "))
+      .join("<br>");
 }
 
-// IA
+// PREDICCIÓN
 function renderPrediccion() {
-  prediccion.innerHTML = DATA.recambios.map(r=>{
-    let c = DATA.movimientos
-      .filter(m=>m.codigo==r.codigo && m.tipo==="salida")
-      .reduce((a,b)=>a+Number(b.cantidad),0);
+  document.getElementById("prediccion").innerHTML =
+    DATA.recambios.map(r=>{
+      let c = DATA.movimientos
+        .filter(m=>m.codigo==r.codigo && m.tipo==="salida")
+        .reduce((a,b)=>a+Number(b.cantidad),0);
 
-    let d = c>0 ? Math.round(r.stock/(c/30)) : "∞";
+      let d = c>0 ? Math.round(r.stock/(c/30)) : "∞";
 
-    return `${r.nombre}: ${d} días`;
-  }).join("<br>");
+      return `${r.nombre}: ${d} días`;
+    }).join("<br>");
 }
 
 // INVENTARIO
 function modoInventario() {
   modoInv = !modoInv;
-  alert("Inventario: "+modoInv);
+  alert("Inventario: " + (modoInv ? "ON" : "OFF"));
 }
 
 // PWA
