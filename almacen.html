@@ -2,25 +2,110 @@
 <html>
 <head>
 <meta charset="UTF-8">
-<title>Almacén</title>
+<title>Gestión de recambios OP Pedrola</title>
+
+<meta name="viewport" content="width=device-width, initial-scale=1">
 
 <style>
-body { font-family: Arial; background:white; color:black; }
-.container { padding:20px; }
+body {
+  font-family: Arial;
+  margin:0;
+  background:white;
+  color:black;
+}
 
-input {
+/* FONDO */
+body::before {
+  content:"";
+  position:fixed;
   width:100%;
-  padding:10px;
-  margin:10px 0;
+  height:100%;
+  background:url("op.png") center no-repeat;
+  background-size:60%;
+  opacity:0.3;
+  z-index:-1;
 }
 
-.item {
-  padding:10px;
-  border-bottom:1px solid #ccc;
+/* HEADER PRO */
+.header {
+  position: sticky;
+  top: 0;
+  z-index: 1000;
+
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+
+  background: rgba(255,255,255,0.95);
+  padding: 12px 10px;
+
+  box-shadow: 0 2px 8px rgba(0,0,0,0.08);
+  border-bottom: 1px solid #eee;
 }
 
+.header img {
+  height: 42px;
+  margin-bottom: 4px;
+}
+
+.header h3 {
+  font-size: 18px;
+  font-weight: 600;
+  margin: 0;
+  text-align: center;
+}
+
+/* CONTENEDOR */
+.container {
+  padding:15px;
+}
+
+/* BOTÓN */
+button {
+  padding:10px;
+  border:none;
+  border-radius:8px;
+  cursor:pointer;
+}
+
+.btn {
+  background:#ddd;
+}
+
+.btn-edit {
+  background:#22c55e;
+  color:black;
+}
+
+/* TABLA */
+.table {
+  width:100%;
+  border-collapse:collapse;
+  font-size:14px;
+}
+
+/* FILAS */
+.table tr {
+  border-bottom:1px solid rgba(0,0,0,0.3); /* 30% */
+}
+
+/* COLUMNAS */
+.table td, .table th {
+  padding:8px;
+  border-right:1px solid rgba(0,0,0,0.05); /* 5% */
+  text-align:left;
+}
+
+/* HEADER TABLA */
+.table th {
+  background:#f5f5f5;
+  position:sticky;
+  top:80px;
+}
+
+/* CRÍTICOS */
 .critico {
-  color:orange;
+  background:#fff3b0;
   font-weight:bold;
 }
 </style>
@@ -28,55 +113,72 @@ input {
 
 <body>
 
+<!-- HEADER -->
+<div class="header">
+  <img src="op.png">
+  <h3>Gestión de recambios OP Mobility Pedrola</h3>
+</div>
+
 <div class="container">
 
-<button onclick="volver()">⬅ Volver</button>
+<button onclick="volver()" class="btn">⬅ Volver</button>
 
-<h2>Almacén</h2>
+<h3>Listado de recambios</h3>
 
-<input id="buscador" placeholder="Buscar..." onkeyup="filtrar()">
-
-<div id="lista"></div>
+<table class="table">
+  <thead>
+    <tr>
+      <th>Código</th>
+      <th>Nombre</th>
+      <th>Ubicación</th>
+      <th>Stock</th>
+      <th>Mín</th>
+      <th>Máx</th>
+      <th>Crítico</th>
+      <th></th>
+    </tr>
+  </thead>
+  <tbody id="tabla"></tbody>
+</table>
 
 </div>
 
 <script>
+const API_URL = "https://script.google.com/macros/s/AKfycbxyURi4bcmWwsaZ4vdXUUVnr_Xu7y9BRG75tITfdwh-zgSIFpvC2lyKJLTT3XTFNS5XZA/exec?v=9";
+
+// 🔐 CONTROL SESIÓN
 const sesion = JSON.parse(localStorage.getItem("sesion"));
 if (!sesion) window.location.href = "index.html";
 
-const API_URL = "https://script.google.com/macros/s/AKfycbxyURi4bcmWwsaZ4vdXUUVnr_Xu7y9BRG75tITfdwh-zgSIFpvC2lyKJLTT3XTFNS5XZA/exec?v=2";
-
 let DATA = [];
-let FILTRADO = [];
 
 window.onload = async () => {
   const res = await fetch(API_URL);
   const json = await res.json();
 
   DATA = json.recambios;
-  FILTRADO = DATA;
-
   render();
 };
 
 function render() {
-  document.getElementById("lista").innerHTML =
-    FILTRADO.map(r => `
-      <div class="item ${r.criticos==='SI' ? 'critico':''}">
-        ${r.codigo} | ${r.nombre} | Stock: ${r.stock}
-      </div>
+  document.getElementById("tabla").innerHTML =
+    DATA.map(r => `
+      <tr class="${r.criticos === 'SI' ? 'critico' : ''}">
+        <td>${r.codigo}</td>
+        <td>${r.nombre}</td>
+        <td>${r.ubicacion || ''}</td>
+        <td>${r.stock}</td>
+        <td>${r.min}</td>
+        <td>${r.max}</td>
+        <td>${r.criticos}</td>
+        <td><button class="btn-edit" onclick="editar('${r.codigo}')">✏️</button></td>
+      </tr>
     `).join("");
 }
 
-function filtrar() {
-  const v = document.getElementById("buscador").value.toLowerCase();
-
-  FILTRADO = DATA.filter(r =>
-    r.codigo.toLowerCase().includes(v) ||
-    r.nombre.toLowerCase().includes(v)
-  );
-
-  render();
+function editar(codigo) {
+  alert("Editar recambio: " + codigo);
+  // 👉 Aquí luego conectamos edición real
 }
 
 function volver() {
