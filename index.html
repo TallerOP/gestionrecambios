@@ -55,7 +55,6 @@ input {
 
 .grid { display:grid; grid-template-columns:1fr 1fr; gap:10px; }
 .big { font-size:22px; padding:25px; }
-
 </style>
 </head>
 
@@ -63,10 +62,10 @@ input {
 
 <!-- LOGIN -->
 <div id="login" class="container">
-<h2>Login</h2>
-<input id="login_nombre" placeholder="Usuario">
-<input id="login_pin" type="password" placeholder="PIN">
-<button onclick="login()" class="btn-primary">Entrar</button>
+  <h2>Login</h2>
+  <input id="login_nombre" placeholder="Usuario">
+  <input id="login_pin" type="password" placeholder="PIN">
+  <button onclick="login()" class="btn-primary">Entrar</button>
 </div>
 
 <!-- APP -->
@@ -88,8 +87,8 @@ input {
 <input id="cantidad" type="number" value="1">
 
 <div class="grid">
-<button class="btn-primary big" onclick="modoRapido('entrada')">➕</button>
-<button class="btn-danger big" onclick="modoRapido('salida')">➖</button>
+<button class="btn-primary big" onclick="setModo('entrada')">➕</button>
+<button class="btn-danger big" onclick="setModo('salida')">➖</button>
 </div>
 
 <div id="info"></div>
@@ -107,9 +106,9 @@ input {
 const API_URL = "https://script.google.com/macros/s/AKfycbxyURi4bcmWwsaZ4vdXUUVnr_Xu7y9BRG75tITfdwh-zgSIFpvC2lyKJLTT3XTFNS5XZA/exec";
 
 let DATA = {};
-let scanner;
+let scanner = null;
 let escaneoActivo = false;
-let modo = "salida"; // default fábrica
+let modo = "salida";
 
 // INIT
 window.onload = async () => {
@@ -118,48 +117,59 @@ window.onload = async () => {
   const sesion = JSON.parse(localStorage.getItem("sesion"));
 
   if (sesion) {
-    entrarApp();
+    const ahora = Date.now();
+    const duracion = 8 * 60 * 60 * 1000;
+
+    if (ahora - sesion.timestamp < duracion) {
+      entrarApp();
+    } else {
+      localStorage.removeItem("sesion");
+    }
   }
 };
 
-// LOGIN
+// LOGIN (CORREGIDO)
 function login() {
-  const nombre = login_nombre.value.trim();
-  const pin = login_pin.value.trim();
+  const nombre = document.getElementById("login_nombre").value.trim();
+  const pin = document.getElementById("login_pin").value.trim();
+
+  if (!DATA.usuarios) {
+    alert("Datos no cargados");
+    return;
+  }
 
   const user = DATA.usuarios.find(u =>
-    u.nombre == nombre && u.pin == pin && u.activo == "SI"
+    String(u.nombre).trim() === nombre &&
+    String(u.pin).trim() === pin &&
+    String(u.activo).trim().toUpperCase() === "SI"
   );
 
-  if (!user) return alert("Error login");
+  if (!user) {
+    alert("❌ Usuario o PIN incorrecto");
+    return;
+  }
 
   localStorage.setItem("sesion", JSON.stringify({
-    usuario:nombre,
-    timestamp:Date.now()
+    usuario: nombre,
+    timestamp: Date.now()
   }));
 
   entrarApp();
 }
 
-// UI
+// ENTRAR APP (FIX)
 function entrarApp() {
-  login.style.display="none";
-  app.style.display="block";
-  pantallaCompleta();
+  document.getElementById("login").style.display = "none";
+  document.getElementById("app").style.display = "block";
 }
 
+// LOGOUT
 function logout() {
   localStorage.removeItem("sesion");
   location.reload();
 }
 
-// FULLSCREEN
-function pantallaCompleta() {
-  if (document.documentElement.requestFullscreen)
-    document.documentElement.requestFullscreen();
-}
-
-// CARGA
+// CARGAR DATOS
 async function cargarDatos() {
   const res = await fetch(API_URL);
   DATA = await res.json();
@@ -168,25 +178,22 @@ async function cargarDatos() {
 
 // RENDER
 function render() {
-  dashboard.innerHTML =
+  document.getElementById("dashboard").innerHTML =
     "Stock bajo: " + DATA.recambios.filter(r=>r.stock<r.min).length;
 
-  historial.innerHTML =
+  document.getElementById("historial").innerHTML =
     DATA.movimientos.slice(-10)
       .map(m=>`${m.codigo} ${m.tipo} ${m.cantidad}`)
       .join("<br>");
 }
 
-// SCANNER CONTINUO
+// SCANNER
 function toggleScanner() {
-
   if (!escaneoActivo) {
     scanner = new Html5Qrcode("reader");
 
     scanner.start({ facingMode:"environment" }, { fps:10 },
-      (txt) => {
-        onScan(txt);
-      });
+      (txt) => onScan(txt));
 
     escaneoActivo = true;
 
@@ -196,21 +203,16 @@ function toggleScanner() {
   }
 }
 
-// AL ESCANEAR
+// SCAN EVENT
 function onScan(txt) {
-  codigo.value = txt;
-
+  document.getElementById("codigo").value = txt;
   feedback();
-
   autoRegistrar(txt);
 }
 
-// FEEDBACK INDUSTRIAL
+// FEEDBACK
 function feedback() {
-  // sonido
   new Audio("https://actions.google.com/sounds/v1/cartoon/clang_and_wobble.ogg").play();
-
-  // vibración
   if (navigator.vibrate) navigator.vibrate(100);
 }
 
@@ -228,7 +230,7 @@ function autoRegistrar(codigoEscaneado) {
   enviar(data);
 }
 
-// ENVÍO ROBUSTO
+// ENVÍO
 function enviar(data) {
   fetch(API_URL, {
     method:"POST",
@@ -239,13 +241,14 @@ function enviar(data) {
   cargarDatos();
 }
 
-// OFFLINE + SYNC
+// OFFLINE
 function guardarOffline(d) {
-  let p = JSON.parse(localStorage.getItem("cola")||"[]");
-  p.push(d);
-  localStorage.setItem("cola", JSON.stringify(p));
+  let cola = JSON.parse(localStorage.getItem("cola")||"[]");
+  cola.push(d);
+  localStorage.setItem("cola", JSON.stringify(cola));
 }
 
+// SYNC
 function sync() {
   let cola = JSON.parse(localStorage.getItem("cola")||"[]");
 
@@ -256,15 +259,18 @@ function sync() {
   localStorage.removeItem("cola");
 }
 
-// MODO RÁPIDO
-function modoRapido(t) {
-  modo = t;
-  alert("Modo: "+t);
-}
-
-// AUTO SYNC
 setInterval(sync, 10000);
 
+// MODO
+function setModo(t) {
+  modo = t;
+  alert("Modo: " + t);
+}
+
+// PWA
+if ("serviceWorker" in navigator) {
+  navigator.serviceWorker.register("sw.js");
+}
 </script>
 
 </body>
