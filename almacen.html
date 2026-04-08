@@ -31,15 +31,12 @@ body::before {
   position: sticky;
   top: 0;
   z-index: 1000;
-
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-
+  display:flex;
+  flex-direction:column;
+  align-items:center;
   background: rgba(255,255,255,0.95);
-  padding: 12px;
-
-  box-shadow: 0 2px 8px rgba(0,0,0,0.08);
+  padding:12px;
+  box-shadow:0 2px 8px rgba(0,0,0,0.08);
 }
 
 /* CONTENEDOR */
@@ -55,23 +52,22 @@ button {
 
 .btn { background:#ddd; }
 
+/* BUSCADOR */
+#buscador {
+  width:100%;
+  padding:10px;
+  margin:10px 0;
+}
+
 /* FILTROS */
 .filtros {
   display:flex;
   gap:5px;
   margin:10px 0;
 }
-
 .filtros button {
   flex:1;
   font-size:12px;
-}
-
-/* BUSCADOR */
-#buscador {
-  width:100%;
-  padding:10px;
-  margin:10px 0;
 }
 
 /* TABLA */
@@ -96,17 +92,18 @@ button {
   border-bottom:1px solid rgba(0,0,0,0.3);
 }
 
-/* HEADER FIJO PERFECTO */
+/* HEADER FIJO */
 .table thead th {
   position: sticky;
-  top: 90px; /* 👈 ajustado al header */
+  top: 90px;
   background:#f5f5f5;
   z-index:500;
+  cursor:pointer;
 }
 
 /* COLORES */
 .bajo { background:#ffb3b3; }
-.alto { background:#ffd699; }
+.alto { background:#0E3471; color:white; }
 .critico { background:#fff3b0; font-weight:bold; }
 
 </style>
@@ -126,7 +123,6 @@ button {
 
 <input id="buscador" placeholder="Buscar..." oninput="filtrar()">
 
-<!-- FILTROS -->
 <div class="filtros">
   <button onclick="setFiltro('todos')">Todos</button>
   <button onclick="setFiltro('criticos')">Críticos</button>
@@ -137,13 +133,13 @@ button {
 <table class="table">
 <thead>
 <tr>
-<th>Código</th>
-<th>Nombre</th>
-<th>Ubicación</th>
-<th>Stock</th>
-<th>Mín</th>
-<th>Máx</th>
-<th>Crítico</th>
+<th onclick="ordenar('codigo')">Código</th>
+<th onclick="ordenar('nombre')">Nombre</th>
+<th onclick="ordenar('ubicacion')">Ubicación</th>
+<th onclick="ordenar('stock')">Stock</th>
+<th onclick="ordenar('min')">Mín</th>
+<th onclick="ordenar('max')">Máx</th>
+<th onclick="ordenar('critico')">Crítico</th>
 </tr>
 </thead>
 <tbody id="tabla"></tbody>
@@ -152,7 +148,7 @@ button {
 </div>
 
 <script>
-const API_URL = "https://script.google.com/macros/s/AKfycbxyURi4bcmWwsaZ4vdXUUVnr_Xu7y9BRG75tITfdwh-zgSIFpvC2lyKJLTT3XTFNS5XZA/exec?v=13";
+const API_URL = "https://script.google.com/macros/s/AKfycbxyURi4bcmWwsaZ4vdXUUVnr_Xu7y9BRG75tITfdwh-zgSIFpvC2lyKJLTT3XTFNS5XZA/exec?v=15";
 
 // SESIÓN
 let sesion = JSON.parse(localStorage.getItem("sesion"));
@@ -164,34 +160,47 @@ localStorage.setItem("sesion", JSON.stringify(sesion));
 let DATA = [];
 let FILTRADOS = [];
 let filtroActual = "todos";
+let ordenActual = "";
+let asc = true;
 
 window.onload = async () => {
-  const res = await fetch(API_URL);
-  const json = await res.json();
-  DATA = json.recambios;
-  aplicarFiltros();
+  try {
+    const res = await fetch(API_URL);
+    const json = await res.json();
+
+    DATA = json.recambios || [];
+    aplicarFiltros();
+
+  } catch (e) {
+    alert("Error cargando datos");
+    console.error(e);
+  }
 };
 
-// FILTRO BOTONES
+// FILTROS
 function setFiltro(f) {
   filtroActual = f;
   aplicarFiltros();
 }
 
-// FILTRADO COMPLETO
+function filtrar() {
+  aplicarFiltros();
+}
+
 function aplicarFiltros() {
-  let v = buscador.value?.toLowerCase() || "";
+  let v = (buscador.value || "").toLowerCase();
 
   FILTRADOS = DATA.filter(r => {
 
-    const matchBusqueda =
-      r.codigo.toLowerCase().includes(v) ||
-      r.nombre.toLowerCase().includes(v);
+    const codigo = String(r.codigo || "").toLowerCase();
+    const nombre = String(r.nombre || "").toLowerCase();
+
+    const matchBusqueda = codigo.includes(v) || nombre.includes(v);
 
     let matchFiltro = true;
 
     if (filtroActual === "criticos")
-      matchFiltro = (r.critico || "").toUpperCase() === "SI";
+      matchFiltro = String(r.critico || "").toUpperCase() === "SI";
 
     if (filtroActual === "bajo")
       matchFiltro = Number(r.stock) < Number(r.min);
@@ -205,30 +214,60 @@ function aplicarFiltros() {
   render();
 }
 
-// BUSCADOR
-function filtrar() {
-  aplicarFiltros();
+// ORDENAR
+function ordenar(campo) {
+
+  asc = (ordenActual === campo) ? !asc : true;
+  ordenActual = campo;
+
+  FILTRADOS.sort((a,b)=>{
+
+    let v1 = a[campo];
+    let v2 = b[campo];
+
+    // Ubicación con tilde
+    if (campo === "ubicacion") {
+      v1 = a["Ubicación"] || a.ubicacion || "";
+      v2 = b["Ubicación"] || b.ubicacion || "";
+    }
+
+    v1 = isNaN(v1) ? String(v1).toLowerCase() : Number(v1);
+    v2 = isNaN(v2) ? String(v2).toLowerCase() : Number(v2);
+
+    if (v1 > v2) return asc ? 1 : -1;
+    if (v1 < v2) return asc ? -1 : 1;
+    return 0;
+  });
+
+  render();
 }
 
 // RENDER
 function render() {
+
   tabla.innerHTML = FILTRADOS.map(r => {
+
+    const stock = Number(r.stock) || 0;
+    const min = Number(r.min) || 0;
+    const max = Number(r.max) || 0;
+
+    const ubicacion = r["Ubicación"] || r.ubicacion || "";
 
     let clase = "";
 
-    if (Number(r.stock) < Number(r.min)) clase = "bajo";
-    else if (Number(r.stock) > Number(r.max)) clase = "alto";
-    else if ((r.critico || "").toUpperCase() === "SI") clase = "critico";
+    if (stock < min) clase = "bajo";
+    else if (stock > max) clase = "alto";
+    else if (String(r.critico || "").toUpperCase() === "SI") clase = "critico";
 
     return `
       <tr class="${clase}">
-        <td>${r.codigo}</td>
-        <td class="nombre">${r.nombre}</td>
-        <td>${r.ubicacion || ''}</td>
-        <td>${r.stock}</td>
-        <td>${r.min}</td>
-        <td>${r.max}</td>
-        <td>${r.critico || ''}</td>
+        <td>${r.codigo || ""}</td>
+        <td class="nombre">${r.nombre || ""}</td>
+        <td>${ubicacion}</td>
+        <td>${stock}</td>
+        <td>${min}</td>
+        <td>${max}</td>
+        <td>${r.critico || ""}</td>
       </tr>
     `;
   }).join("");
