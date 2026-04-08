@@ -4,41 +4,98 @@
 <meta charset="UTF-8">
 <title>Almacén</title>
 
+<meta name="viewport" content="width=device-width, initial-scale=1">
+
 <script src="https://unpkg.com/html5-qrcode"></script>
 
 <style>
 body {
   font-family: Arial;
+  margin:0;
   background:white;
   color:black;
-  margin:0;
 }
 
-.container { padding:20px; }
+/* LOGIN */
+#login {
+  padding:20px;
+}
 
-button {
+/* APP */
+#app {
+  display:none;
+}
+
+/* ZONA ESCANEO */
+#scannerBox {
+  width:100%;
+  background:#e6f2ff;
+  padding:10px;
+  box-sizing:border-box;
+}
+
+#reader {
+  width:100%;
+}
+
+/* CONTENIDO */
+.container {
+  padding:15px;
+}
+
+/* INPUTS */
+input {
   width:100%;
   padding:15px;
   margin:5px 0;
   font-size:16px;
-  border:none;
+  border:1px solid #ccc;
   border-radius:8px;
 }
 
-input {
-  width:100%;
-  padding:10px;
-  margin:5px 0;
+/* BOTONES */
+button {
+  padding:18px;
+  font-size:16px;
+  border:none;
+  border-radius:10px;
 }
 
-.btn { background:#ddd; }
-.btn-ok { background:#22c55e; }
-.btn-out { background:#ef4444; color:white; }
+.btn {
+  background:#ddd;
+}
 
+.btn-ok {
+  background:#22c55e;
+  color:black;
+}
+
+.btn-out {
+  background:#ef4444;
+  color:white;
+}
+
+/* BOTONES GRANDES */
 .grid {
-  display:grid;
-  grid-template-columns:1fr 1fr;
+  display:flex;
   gap:10px;
+}
+
+.grid button {
+  width:50%;
+}
+
+/* NAV */
+.nav {
+  display:flex;
+  gap:10px;
+  margin-top:10px;
+}
+
+.nav button {
+  width:50%;
+  font-size:18px;
+  padding:20px;
 }
 </style>
 </head>
@@ -46,28 +103,26 @@ input {
 <body>
 
 <!-- LOGIN -->
-<div id="login" class="container">
+<div id="login">
   <h2>Login</h2>
   <input id="login_nombre" placeholder="Usuario">
   <input id="login_pin" type="password" placeholder="PIN">
   <button id="btnLogin" class="btn-ok">Entrar</button>
 </div>
 
-<!-- APP PRINCIPAL -->
-<div id="app" style="display:none;" class="container">
+<!-- APP -->
+<div id="app">
 
-<h2>📦 Almacén</h2>
+<!-- ESCANEO FULL WIDTH -->
+<div id="scannerBox">
+  <button onclick="iniciarScanner()" class="btn">📷 Escanear</button>
+  <div id="reader"></div>
+</div>
 
-<!-- NAV -->
-<button onclick="irHistorico()" class="btn">📊 Histórico</button>
-<button onclick="irAlmacen()" class="btn">📦 Almacén</button>
-<button onclick="logout()" class="btn-out">Salir</button>
+<!-- RESTO -->
+<div class="container">
 
-<hr>
-
-<!-- OPERATIVA -->
-<button onclick="iniciarScanner()" class="btn">📷 Escanear</button>
-<div id="reader"></div>
+<h3>Operación</h3>
 
 <input id="codigo" placeholder="Código">
 <input id="cantidad" type="number" value="1">
@@ -79,12 +134,21 @@ input {
   <button onclick="registrar('salida')" class="btn-out">Salida</button>
 </div>
 
-<div id="info"></div>
+<!-- NAVEGACIÓN -->
+<div class="nav">
+  <button onclick="irAlmacen()" class="btn">📦 Almacén</button>
+  <button onclick="irHistorico()" class="btn">📊 Histórico</button>
+</div>
 
+<button onclick="logout()" class="btn-out" style="width:100%; margin-top:10px;">
+  Salir
+</button>
+
+</div>
 </div>
 
 <script>
-const API_URL = "https://script.google.com/macros/s/AKfycbxyURi4bcmWwsaZ4vdXUUVnr_Xu7y9BRG75tITfdwh-zgSIFpvC2lyKJLTT3XTFNS5XZA/exec?v=3";
+const API_URL = "https://script.google.com/macros/s/AKfycbxyURi4bcmWwsaZ4vdXUUVnr_Xu7y9BRG75tITfdwh-zgSIFpvC2lyKJLTT3XTFNS5XZA/exec?v=4";
 
 let DATA = {};
 let scanner = null;
@@ -98,7 +162,7 @@ window.onload = async () => {
   checkSesion();
 };
 
-// 🔐 CONTROL SESIÓN
+// SESIÓN
 function checkSesion() {
   const sesion = JSON.parse(localStorage.getItem("sesion"));
 
@@ -135,7 +199,7 @@ function login() {
   entrarApp();
 }
 
-// ENTRAR
+// UI
 function entrarApp() {
   document.getElementById("login").style.display="none";
   document.getElementById("app").style.display="block";
@@ -156,7 +220,7 @@ function irAlmacen() {
   window.location.href = "almacen.html";
 }
 
-// DATOS
+// DATA
 async function cargarDatos() {
   const res = await fetch(API_URL);
   DATA = await res.json();
@@ -173,13 +237,13 @@ function iniciarScanner() {
     });
 }
 
-// REGISTRAR
+// REGISTRO
 function registrar(tipo) {
   const sesion = JSON.parse(localStorage.getItem("sesion"));
 
   const data = {
     codigo: document.getElementById("codigo").value,
-    tipo: tipo,
+    tipo,
     usuario: sesion?.usuario || "desconocido",
     cantidad: document.getElementById("cantidad").value,
     orden: document.getElementById("ot").value,
@@ -191,7 +255,7 @@ function registrar(tipo) {
     body: JSON.stringify(data)
   });
 
-  alert("Movimiento registrado");
+  alert("Registrado");
 }
 </script>
 
