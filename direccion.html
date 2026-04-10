@@ -1,0 +1,285 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="UTF-8">
+<title>Dirección</title>
+
+<meta name="viewport" content="width=device-width, initial-scale=1">
+
+<style>
+body {
+  font-family: Arial;
+  margin:0;
+  background:white;
+  color:black;
+}
+
+/* HEADER */
+.header {
+  position:sticky;
+  top:0;
+  z-index:1000;
+  background:white;
+  text-align:center;
+  padding:12px;
+  box-shadow:0 2px 6px rgba(0,0,0,0.1);
+}
+
+.container { padding:10px; }
+
+/* KPI GRID */
+.kpis {
+  display:grid;
+  grid-template-columns:1fr 1fr;
+  gap:10px;
+  margin-bottom:15px;
+}
+
+.card {
+  padding:15px;
+  border-radius:10px;
+  background:#f5f5f5;
+  text-align:center;
+}
+
+.card h2 {
+  margin:0;
+  font-size:22px;
+}
+
+.card p {
+  margin:5px 0 0;
+  font-size:12px;
+}
+
+/* COLORES */
+.rojo { background:#ffb3b3; }
+.azul { background:#0E3471; color:white; }
+.amarillo { background:#fff3b0; }
+
+/* FILTRO */
+select {
+  width:100%;
+  padding:10px;
+  margin-bottom:10px;
+}
+
+/* LISTAS */
+.lista {
+  margin-top:15px;
+}
+
+.lista h3 {
+  margin:10px 0 5px;
+}
+
+.item {
+  padding:8px;
+  border-bottom:1px solid rgba(0,0,0,0.3);
+  font-size:14px;
+}
+</style>
+</head>
+
+<body>
+
+<div class="header">
+  <h2>📈 Panel Dirección</h2>
+</div>
+
+<div class="container">
+
+<button onclick="volver()">⬅ Volver</button>
+
+<select id="filtroFecha" onchange="filtrar()">
+  <option value="hoy">Hoy</option>
+  <option value="semana">Últimos 7 días</option>
+  <option value="mes">Últimos 30 días</option>
+  <option value="todo">Todo</option>
+</select>
+
+<div class="kpis">
+
+  <div class="card">
+    <h2 id="kpiConsumo">0</h2>
+    <p>Consumo total</p>
+  </div>
+
+  <div class="card">
+    <h2 id="kpiRec">0</h2>
+    <p>Recambios activos</p>
+  </div>
+
+  <div class="card amarillo">
+    <h2 id="kpiCritico">0</h2>
+    <p>% críticos</p>
+  </div>
+
+  <div class="card azul">
+    <h2 id="kpiRotacion">0</h2>
+    <p>Días stock medio</p>
+  </div>
+
+</div>
+
+<div class="kpis">
+
+  <div class="card rojo">
+    <h2 id="kpiBajo">0</h2>
+    <p>Bajo mínimo</p>
+  </div>
+
+  <div class="card azul">
+    <h2 id="kpiAlto">0</h2>
+    <p>Sobre stock</p>
+  </div>
+
+</div>
+
+<div class="lista">
+  <h3>🔥 Top consumo</h3>
+  <div id="top"></div>
+</div>
+
+<div class="lista">
+  <h3>🏭 Consumo por OT</h3>
+  <div id="ots"></div>
+</div>
+
+<div class="lista">
+  <h3>👷 Consumo por usuario</h3>
+  <div id="usuarios"></div>
+</div>
+
+</div>
+
+<script>
+const API_URL = "https://script.google.com/macros/s/AKfycbxyURi4bcmWwsaZ4vdXUUVnr_Xu7y9BRG75tITfdwh-zgSIFpvC2lyKJLTT3XTFNS5XZA/exec?v=80";
+
+// 🔐 ACCESO
+let sesion = JSON.parse(localStorage.getItem("sesion"));
+if (!sesion || sesion.usuario !== "Alberto") {
+  alert("Acceso restringido");
+  location="index.html";
+}
+
+let MOV=[], REC=[], FIL=[];
+
+window.onload = async ()=>{
+
+  const res = await fetch(API_URL);
+  const json = await res.json();
+
+  MOV = json.movimientos;
+  REC = json.recambios.filter(r=>r.activo==="SI");
+
+  filtrar();
+};
+
+// FILTRO
+function filtrar(){
+
+  let tipo = filtroFecha.value;
+  let ahora = new Date();
+
+  FIL = MOV.filter(m=>{
+    let f = new Date(m.fecha);
+
+    if(tipo==="hoy") return f.toDateString()===ahora.toDateString();
+    if(tipo==="semana") return (ahora-f)<7*86400000;
+    if(tipo==="mes") return (ahora-f)<30*86400000;
+    return true;
+  });
+
+  calcularKPIs();
+  topConsumo();
+  consumoOT();
+  consumoUsuarios();
+}
+
+// KPIs
+function calcularKPIs(){
+
+  let consumo = FIL
+    .filter(m=>m.tipo==="salida")
+    .reduce((a,b)=>a+Number(b.cantidad),0);
+
+  let recTotal = REC.length;
+
+  let crit = REC.filter(r=>r.critico==="SI").length;
+  let critPct = recTotal ? Math.round((crit/recTotal)*100) : 0;
+
+  let bajo = REC.filter(r=>r.stock<r.min).length;
+  let alto = REC.filter(r=>r.stock>r.max).length;
+
+  // rotación simple
+  let rot = consumo>0 ? Math.round(recTotal/(consumo/30)) : "∞";
+
+  kpiConsumo.innerText = consumo;
+  kpiRec.innerText = recTotal;
+  kpiCritico.innerText = critPct + "%";
+  kpiRotacion.innerText = rot;
+
+  kpiBajo.innerText = bajo;
+  kpiAlto.innerText = alto;
+}
+
+// TOP
+function topConsumo(){
+
+  let uso={};
+
+  FIL.forEach(m=>{
+    if(m.tipo==="salida")
+      uso[m.codigo]=(uso[m.codigo]||0)+Number(m.cantidad);
+  });
+
+  let topList = Object.entries(uso)
+    .sort((a,b)=>b[1]-a[1])
+    .slice(0,5);
+
+  top.innerHTML = topList.map(t=>{
+    let r = REC.find(x=>x.codigo==t[0]);
+    return `<div class="item">${r?.nombre||t[0]} → ${t[1]}</div>`;
+  }).join("");
+}
+
+// OT
+function consumoOT(){
+
+  let uso={};
+
+  FIL.forEach(m=>{
+    if(m.tipo==="salida" && m.orden)
+      uso[m.orden]=(uso[m.orden]||0)+Number(m.cantidad);
+  });
+
+  ots.innerHTML = Object.entries(uso)
+    .sort((a,b)=>b[1]-a[1])
+    .map(o=>`<div class="item">${o[0]} → ${o[1]}</div>`)
+    .join("");
+}
+
+// USUARIOS
+function consumoUsuarios(){
+
+  let uso={};
+
+  FIL.forEach(m=>{
+    if(m.tipo==="salida")
+      uso[m.usuario]=(uso[m.usuario]||0)+Number(m.cantidad);
+  });
+
+  usuarios.innerHTML = Object.entries(uso)
+    .sort((a,b)=>b[1]-a[1])
+    .map(u=>`<div class="item">${u[0]} → ${u[1]}</div>`)
+    .join("");
+}
+
+// NAV
+function volver(){ location="index.html"; }
+
+</script>
+
+</body>
+</html>
