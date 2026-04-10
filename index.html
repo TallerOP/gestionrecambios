@@ -2,324 +2,178 @@
 <html>
 <head>
 <meta charset="UTF-8">
-<title>Gestión de recambios OP Mobility Pedrola</title>
+<title>Almacén</title>
 
 <meta name="viewport" content="width=device-width, initial-scale=1">
 
-<script src="https://unpkg.com/html5-qrcode"></script>
-
 <style>
-body {
-  font-family: Arial;
-  margin:0;
-  background:white;
-  color:black;
-}
+body { font-family: Arial; margin:0; background:white; }
 
-/* FONDO */
-body::before {
-  content:"";
-  position:fixed;
-  width:100%;
-  height:100%;
-  background:url("op.png") center no-repeat;
-  background-size:60%;
-  opacity:0.3;
-  z-index:-1;
-}
-
-/* HEADER */
 .header {
-  position: sticky;
-  top: 0;
-  z-index: 1000;
-
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  justify-content: center;
-
-  background: white;
-  padding: 12px 10px;
-
-  box-shadow: 0 2px 8px rgba(0,0,0,0.08);
-  border-bottom: 1px solid #eee;
-}
-
-.header img {
-  height: 42px;
-  margin-bottom: 4px;
-}
-
-.header h3 {
-  font-size: 18px;
-  font-weight: 600;
-  margin: 0;
-  text-align: center;
-  letter-spacing: 0.3px;
-}
-
-/* SCANNER */
-#scannerBox {
-  width:100%;
-  background:#e6f2ff;
-  padding:10px;
-}
-
-/* CONTENIDO */
-.container { padding:15px; }
-
-input {
-  width:100%;
+  text-align:center;
   padding:15px;
+  background:#eef5ff;
+}
+
+input, button {
+  width:100%;
+  padding:12px;
   margin:5px 0;
-  border:1px solid #ccc;
-  border-radius:8px;
   box-sizing:border-box;
 }
 
-input[readonly] { background:#eee; }
-
 button {
-  width:100%;
-  padding:18px;
+  background:#0E3471;
+  color:white;
   border:none;
-  border-radius:10px;
   cursor:pointer;
 }
 
-.btn { background:#ddd; }
-.btn-ok { background:#22c55e; }
-.btn-out { background:#ef4444; color:white; }
-
-.grid { display:flex; gap:10px; }
-.grid button { width:50%; }
-
-.nav { display:flex; gap:10px; margin-top:10px; }
-.nav button { width:50%; }
+#app { display:none; padding:10px; }
 </style>
 </head>
 
 <body>
 
-<!-- LOGIN -->
-<div id="login" class="container">
+<div id="login" class="header">
   <h2>Login</h2>
-  <input id="login_nombre" placeholder="Usuario">
-  <input id="login_pin" type="password" placeholder="PIN">
-  <button id="btnLogin" class="btn-ok">Entrar</button>
+  <input id="login_nombre" placeholder="Usuario" autocomplete="off">
+  <input id="login_pin" type="password" placeholder="PIN" autocomplete="off">
+  <button onclick="login()">Entrar</button>
 </div>
 
-<!-- APP -->
-<div id="app" style="display:none;">
+<div id="app">
 
-<div class="header">
-  <img src="op.png">
-  <h3>Gestión de recambios OP Mobility Pedrola</h3>
-</div>
+<h2>Escaneo</h2>
 
-<div id="scannerBox">
-  <button onclick="iniciarScanner()" class="btn">📷 Escanear</button>
-  <div id="reader"></div>
-</div>
+<input id="codigo" placeholder="Código">
+<input id="nombre" placeholder="Nombre" disabled>
+<input id="cantidad" type="number" min="1" placeholder="Cantidad">
 
-<div class="container">
-
-<input id="codigo" placeholder="Código" oninput="buscarRecambio()">
-<input id="nombre" placeholder="Nombre recambio" readonly>
-
-<input id="cantidad" type="number" value="1" min="1">
 <input id="ot" placeholder="OT">
 
-<div class="grid">
-  <button onclick="registrar('entrada')" class="btn-ok">Entrada</button>
-  <button onclick="registrar('salida')" class="btn-out">Salida</button>
-</div>
+<button onclick="registrar('entrada')">Entrada</button>
+<button onclick="registrar('salida')">Salida</button>
 
-<div class="nav">
-  <button onclick="irAlmacen()" class="btn">📦 Almacén</button>
-  <button onclick="irHistorico()" class="btn">📊 Histórico</button>
-</div>
+<button onclick="irAlmacen()">📦 Almacén</button>
+<button onclick="irHistorico()">📊 Histórico</button>
 
-<button onclick="logout()" class="btn-out" style="margin-top:10px;">Salir</button>
-
-</div>
 </div>
 
 <script>
-const API_URL = "https://script.google.com/macros/s/AKfycbxyURi4bcmWwsaZ4vdXUUVnr_Xu7y9BRG75tITfdwh-zgSIFpvC2lyKJLTT3XTFNS5XZA/exec?v=8";
+const API_URL = "https://script.google.com/macros/s/AKfycbxyURi4bcmWwsaZ4vdXUUVnr_Xu7y9BRG75tITfdwh-zgSIFpvC2lyKJLTT3XTFNS5XZA/exec?v=50";
 
 let DATA = {};
-let scanner = null;
-let ultimoScan = "";
-let tiempoScan = 0;
-
-// SONIDOS
-const okSound = new Audio("https://actions.google.com/sounds/v1/cartoon/wood_plank_flicks.ogg");
-const errorSound = new Audio("https://actions.google.com/sounds/v1/alarms/beep_short.ogg");
 
 // INIT
 window.onload = async () => {
-  document.getElementById("btnLogin").addEventListener("click", login);
+
+  let sesion = JSON.parse(localStorage.getItem("sesion"));
+
   await cargarDatos();
-  checkSesion();
+
+  if (sesion) {
+    login_ok();
+  }
 };
 
-// SESIÓN
-function checkSesion() {
-  const sesion = JSON.parse(localStorage.getItem("sesion"));
-  if (!sesion) return;
+// CARGA
+async function cargarDatos() {
 
-  if (Date.now() - sesion.timestamp < 28800000) {
-    entrarApp();
-  } else {
-    localStorage.removeItem("sesion");
+  let cache = localStorage.getItem("data_cache");
+
+  if (cache) {
+    DATA = JSON.parse(cache);
+  }
+
+  try {
+    const res = await fetch(API_URL);
+    const json = await res.json();
+
+    DATA = json;
+    localStorage.setItem("data_cache", JSON.stringify(DATA));
+
+  } catch(e) {
+    console.log("Offline, usando cache");
   }
 }
 
 // LOGIN
 function login() {
-  if (!DATA.usuarios) return alert("Datos no cargados");
 
-  const nombre = document.getElementById("login_nombre").value.trim();
-  const pin = document.getElementById("login_pin").value.trim();
+  if (!DATA.usuarios) {
+    alert("Cargando datos...");
+    return;
+  }
+
+  const nombre = login_nombre.value;
+  const pin = login_pin.value;
 
   const user = DATA.usuarios.find(u =>
-    String(u.nombre).trim() === nombre &&
-    String(u.pin).trim() === pin &&
-    String(u.activo).trim().toUpperCase() === "SI"
+    u.nombre === nombre && u.pin == pin && u.activo === "SI"
   );
 
-  if (!user) return alert("Usuario o PIN incorrecto");
+  if (!user) return alert("Error login");
 
   localStorage.setItem("sesion", JSON.stringify({
     usuario: nombre,
     timestamp: Date.now()
   }));
 
-  entrarApp();
+  login_ok();
 }
 
-// UI
-function entrarApp() {
+function login_ok() {
   document.getElementById("login").style.display="none";
   document.getElementById("app").style.display="block";
 }
 
-// LOGOUT
-function logout() {
-  localStorage.removeItem("sesion");
-  location.reload();
-}
+// BUSCAR NOMBRE
+codigo.addEventListener("input", ()=>{
 
-// DATA
-async function cargarDatos() {
-  const res = await fetch(API_URL);
-  DATA = await res.json();
-}
-
-// BUSCAR
-function buscarRecambio() {
-  const cod = document.getElementById("codigo").value;
-
-  const r = DATA.recambios.find(x =>
-    x.codigo == cod || x.codigo_sap == cod
+  let r = DATA.recambios.find(x =>
+    x.codigo == codigo.value
   );
 
-  document.getElementById("nombre").value = r ? r.nombre : "";
-}
+  nombre.value = r ? r.nombre : "";
+});
 
-// SCANNER con estabilidad 1s
-function iniciarScanner() {
-  scanner = new Html5Qrcode("reader");
+// REGISTRO
+function registrar(tipo){
 
-  scanner.start({ facingMode:"environment" }, { fps:10 },
-    (txt) => {
+  let cant = Number(cantidad.value);
 
-      if (txt !== ultimoScan) {
-        ultimoScan = txt;
-        tiempoScan = Date.now();
-        return;
-      }
+  if (cant <= 0) return alert("Cantidad inválida");
 
-      if (Date.now() - tiempoScan < 1000) return;
+  let r = DATA.recambios.find(x => x.codigo == codigo.value);
 
-      document.getElementById("codigo").value = txt;
-      buscarRecambio();
+  if (!r) return alert("Código no existe");
 
-      const existe = DATA.recambios.find(x =>
-        x.codigo == txt || x.codigo_sap == txt
-      );
+  if (tipo==="salida" && cant > Number(r.stock))
+    return alert("Sin stock suficiente");
 
-      if (existe) {
-        okSound.play();
-      } else {
-        errorSound.play();
-      }
-
-      if (navigator.vibrate) navigator.vibrate(100);
-
-      scanner.stop();
-    });
-}
-
-// REGISTRAR
-function registrar(tipo) {
-  const sesion = JSON.parse(localStorage.getItem("sesion"));
-  const codigo = document.getElementById("codigo").value.trim();
-  const cantidad = Number(document.getElementById("cantidad").value);
-
-  if (!cantidad || cantidad <= 0) {
-    alert("Cantidad inválida");
-    return;
-  }
-
-  const recambio = DATA.recambios.find(x =>
-    x.codigo == codigo || x.codigo_sap == codigo
-  );
-
-  if (!recambio) {
-    errorSound.play();
-    alert("Recambio no existe");
-    return;
-  }
-
-  if (tipo === "salida") {
-    if (cantidad > Number(recambio.stock)) {
-      alert("Stock insuficiente");
-      return;
-    }
-  }
-
-  const data = {
-    codigo,
-    tipo,
-    usuario: sesion?.usuario || "desconocido",
-    cantidad,
-    orden: document.getElementById("ot").value
-  };
-
-  fetch(API_URL, {
+  fetch(API_URL,{
     method:"POST",
-    body: JSON.stringify(data)
+    body: JSON.stringify({
+      codigo: codigo.value,
+      cantidad: cant,
+      tipo,
+      usuario: JSON.parse(localStorage.getItem("sesion")).usuario,
+      orden: ot.value
+    })
   });
 
-  okSound.play();
-  limpiar();
-}
-
-// LIMPIAR
-function limpiar() {
-  document.getElementById("codigo").value="";
-  document.getElementById("nombre").value="";
-  document.getElementById("cantidad").value=1;
-  document.getElementById("ot").value="";
-  document.getElementById("codigo").focus();
+  // LIMPIEZA
+  codigo.value="";
+  nombre.value="";
+  cantidad.value="";
+  ot.value="";
 }
 
 // NAV
-function irHistorico(){ window.location.href="historico.html"; }
 function irAlmacen(){ window.location.href="almacen.html"; }
+function irHistorico(){ window.location.href="historico.html"; }
+
 </script>
 
 </body>
