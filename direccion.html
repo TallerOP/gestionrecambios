@@ -67,7 +67,7 @@ body::before {
 .nav {
   display:flex;
   gap:5px;
-  margin-top:10px;
+  margin-bottom:15px;
 }
 
 .nav button {
@@ -82,16 +82,10 @@ body::before {
 
 /* LISTAS */
 .lista { margin-top:15px; }
+
 .item {
   padding:8px;
   border-bottom:1px solid rgba(0,0,0,0.3);
-}
-
-/* CANVAS */
-canvas {
-  width:100%;
-  height:200px;
-  margin-bottom:10px;
 }
 </style>
 </head>
@@ -104,8 +98,6 @@ canvas {
 </div>
 
 <div class="container">
-
-<canvas id="grafico"></canvas>
 
 <div class="nav">
   <button onclick="irInicio()">Inicio</button>
@@ -155,7 +147,7 @@ canvas {
 </div>
 
 <script>
-const API_URL = "https://script.google.com/macros/s/AKfycbxyURi4bcmWwsaZ4vdXUUVnr_Xu7y9BRG75tITfdwh-zgSIFpvC2lyKJLTT3XTFNS5XZA/exec?v=90";
+const API_URL = "https://script.google.com/macros/s/AKfycbxyURi4bcmWwsaZ4vdXUUVnr_Xu7y9BRG75tITfdwh-zgSIFpvC2lyKJLTT3XTFNS5XZA/exec?v=91";
 
 // 🔐 ACCESO
 let sesion = JSON.parse(localStorage.getItem("sesion"));
@@ -204,7 +196,6 @@ function calcular(){
 
   topConsumo();
   consumoUsuarios();
-  dibujarGrafico(bajo, alto, crit);
 }
 
 // TOP
@@ -238,29 +229,6 @@ function consumoUsuarios(){
     .sort((a,b)=>b[1]-a[1])
     .map(u=>`<div class="item">${u[0]} → ${u[1]}</div>`)
     .join("");
-}
-
-// 📊 GRÁFICO SIMPLE
-function dibujarGrafico(bajo, alto, crit){
-
-  const ctx = document.getElementById("grafico").getContext("2d");
-
-  const data = [bajo, alto, crit];
-  const total = data.reduce((a,b)=>a+b,0);
-
-  let start = 0;
-
-  data.forEach((v,i)=>{
-    let angle = (v/total) * Math.PI*2;
-
-    ctx.beginPath();
-    ctx.moveTo(150,100);
-    ctx.arc(150,100,80,start,start+angle);
-    ctx.fillStyle = ["#ffb3b3","#0E3471","#fff3b0"][i];
-    ctx.fill();
-
-    start += angle;
-  });
 }
 
 // NAV
