@@ -2,7 +2,7 @@
 <html>
 <head>
 <meta charset="UTF-8">
-<title>Dirección</title>
+<title>Gestión App</title>
 
 <meta name="viewport" content="width=device-width, initial-scale=1">
 
@@ -14,20 +14,35 @@ body {
   color:black;
 }
 
+/* FONDO */
+body::before {
+  content:"";
+  position:fixed;
+  width:100%;
+  height:100%;
+  background:url("op.png") center no-repeat;
+  background-size:60%;
+  opacity:0.3;
+  z-index:-1;
+}
+
 /* HEADER */
 .header {
   position:sticky;
   top:0;
   z-index:1000;
-  background:white;
-  text-align:center;
+  display:flex;
+  flex-direction:column;
+  align-items:center;
+  background: rgba(255,255,255,0.95);
   padding:12px;
-  box-shadow:0 2px 6px rgba(0,0,0,0.1);
+  box-shadow:0 2px 8px rgba(0,0,0,0.08);
 }
 
+/* CONTENIDO */
 .container { padding:10px; }
 
-/* KPI GRID */
+/* KPIs */
 .kpis {
   display:grid;
   grid-template-columns:1fr 1fr;
@@ -42,41 +57,41 @@ body {
   text-align:center;
 }
 
-.card h2 {
-  margin:0;
-  font-size:22px;
-}
+.card h2 { margin:0; font-size:22px; }
 
-.card p {
-  margin:5px 0 0;
-  font-size:12px;
-}
-
-/* COLORES */
 .rojo { background:#ffb3b3; }
 .azul { background:#0E3471; color:white; }
 .amarillo { background:#fff3b0; }
 
-/* FILTRO */
-select {
-  width:100%;
-  padding:10px;
-  margin-bottom:10px;
+/* BOTONES */
+.nav {
+  display:flex;
+  gap:5px;
+  margin-top:10px;
+}
+
+.nav button {
+  flex:1;
+  padding:12px;
+  border:none;
+  background:#0E3471;
+  color:white;
+  cursor:pointer;
+  border-radius:8px;
 }
 
 /* LISTAS */
-.lista {
-  margin-top:15px;
-}
-
-.lista h3 {
-  margin:10px 0 5px;
-}
-
+.lista { margin-top:15px; }
 .item {
   padding:8px;
   border-bottom:1px solid rgba(0,0,0,0.3);
-  font-size:14px;
+}
+
+/* CANVAS */
+canvas {
+  width:100%;
+  height:200px;
+  margin-bottom:10px;
 }
 </style>
 </head>
@@ -84,19 +99,19 @@ select {
 <body>
 
 <div class="header">
-  <h2>📈 Panel Dirección</h2>
+  <img src="op.png" height="40">
+  <h3>Gestión de recambios OP Mobility Pedrola</h3>
 </div>
 
 <div class="container">
 
-<button onclick="volver()">⬅ Volver</button>
+<canvas id="grafico"></canvas>
 
-<select id="filtroFecha" onchange="filtrar()">
-  <option value="hoy">Hoy</option>
-  <option value="semana">Últimos 7 días</option>
-  <option value="mes">Últimos 30 días</option>
-  <option value="todo">Todo</option>
-</select>
+<div class="nav">
+  <button onclick="irInicio()">Inicio</button>
+  <button onclick="irAlmacen()">Almacén</button>
+  <button onclick="irHistorico()">Histórico</button>
+</div>
 
 <div class="kpis">
 
@@ -114,15 +129,6 @@ select {
     <h2 id="kpiCritico">0</h2>
     <p>% críticos</p>
   </div>
-
-  <div class="card azul">
-    <h2 id="kpiRotacion">0</h2>
-    <p>Días stock medio</p>
-  </div>
-
-</div>
-
-<div class="kpis">
 
   <div class="card rojo">
     <h2 id="kpiBajo">0</h2>
@@ -142,11 +148,6 @@ select {
 </div>
 
 <div class="lista">
-  <h3>🏭 Consumo por OT</h3>
-  <div id="ots"></div>
-</div>
-
-<div class="lista">
   <h3>👷 Consumo por usuario</h3>
   <div id="usuarios"></div>
 </div>
@@ -154,16 +155,17 @@ select {
 </div>
 
 <script>
-const API_URL = "https://script.google.com/macros/s/AKfycbxyURi4bcmWwsaZ4vdXUUVnr_Xu7y9BRG75tITfdwh-zgSIFpvC2lyKJLTT3XTFNS5XZA/exec?v=80";
+const API_URL = "https://script.google.com/macros/s/AKfycbxyURi4bcmWwsaZ4vdXUUVnr_Xu7y9BRG75tITfdwh-zgSIFpvC2lyKJLTT3XTFNS5XZA/exec?v=90";
 
 // 🔐 ACCESO
 let sesion = JSON.parse(localStorage.getItem("sesion"));
-if (!sesion || sesion.usuario !== "Alberto") {
+
+if (!sesion || !["Alberto","Jose Luis"].includes(sesion.usuario)) {
   alert("Acceso restringido");
   location="index.html";
 }
 
-let MOV=[], REC=[], FIL=[];
+let MOV=[], REC=[];
 
 window.onload = async ()=>{
 
@@ -171,57 +173,38 @@ window.onload = async ()=>{
   const json = await res.json();
 
   MOV = json.movimientos;
-  REC = json.recambios.filter(r=>r.activo==="SI");
 
-  filtrar();
+  REC = json.recambios.filter(r =>
+    String(r.activo).toUpperCase() === "SI"
+  );
+
+  calcular();
 };
 
-// FILTRO
-function filtrar(){
-
-  let tipo = filtroFecha.value;
-  let ahora = new Date();
-
-  FIL = MOV.filter(m=>{
-    let f = new Date(m.fecha);
-
-    if(tipo==="hoy") return f.toDateString()===ahora.toDateString();
-    if(tipo==="semana") return (ahora-f)<7*86400000;
-    if(tipo==="mes") return (ahora-f)<30*86400000;
-    return true;
-  });
-
-  calcularKPIs();
-  topConsumo();
-  consumoOT();
-  consumoUsuarios();
-}
-
 // KPIs
-function calcularKPIs(){
+function calcular(){
 
-  let consumo = FIL
+  let consumo = MOV
     .filter(m=>m.tipo==="salida")
     .reduce((a,b)=>a+Number(b.cantidad),0);
 
   let recTotal = REC.length;
 
-  let crit = REC.filter(r=>r.critico==="SI").length;
+  let crit = REC.filter(r=>String(r.critico).toUpperCase()==="SI").length;
   let critPct = recTotal ? Math.round((crit/recTotal)*100) : 0;
 
-  let bajo = REC.filter(r=>r.stock<r.min).length;
-  let alto = REC.filter(r=>r.stock>r.max).length;
-
-  // rotación simple
-  let rot = consumo>0 ? Math.round(recTotal/(consumo/30)) : "∞";
+  let bajo = REC.filter(r=>Number(r.stock) < Number(r.min)).length;
+  let alto = REC.filter(r=>Number(r.stock) > Number(r.max)).length;
 
   kpiConsumo.innerText = consumo;
   kpiRec.innerText = recTotal;
   kpiCritico.innerText = critPct + "%";
-  kpiRotacion.innerText = rot;
-
   kpiBajo.innerText = bajo;
   kpiAlto.innerText = alto;
+
+  topConsumo();
+  consumoUsuarios();
+  dibujarGrafico(bajo, alto, crit);
 }
 
 // TOP
@@ -229,34 +212,15 @@ function topConsumo(){
 
   let uso={};
 
-  FIL.forEach(m=>{
+  MOV.forEach(m=>{
     if(m.tipo==="salida")
       uso[m.codigo]=(uso[m.codigo]||0)+Number(m.cantidad);
   });
 
-  let topList = Object.entries(uso)
+  top.innerHTML = Object.entries(uso)
     .sort((a,b)=>b[1]-a[1])
-    .slice(0,5);
-
-  top.innerHTML = topList.map(t=>{
-    let r = REC.find(x=>x.codigo==t[0]);
-    return `<div class="item">${r?.nombre||t[0]} → ${t[1]}</div>`;
-  }).join("");
-}
-
-// OT
-function consumoOT(){
-
-  let uso={};
-
-  FIL.forEach(m=>{
-    if(m.tipo==="salida" && m.orden)
-      uso[m.orden]=(uso[m.orden]||0)+Number(m.cantidad);
-  });
-
-  ots.innerHTML = Object.entries(uso)
-    .sort((a,b)=>b[1]-a[1])
-    .map(o=>`<div class="item">${o[0]} → ${o[1]}</div>`)
+    .slice(0,5)
+    .map(t=>`<div class="item">${t[0]} → ${t[1]}</div>`)
     .join("");
 }
 
@@ -265,7 +229,7 @@ function consumoUsuarios(){
 
   let uso={};
 
-  FIL.forEach(m=>{
+  MOV.forEach(m=>{
     if(m.tipo==="salida")
       uso[m.usuario]=(uso[m.usuario]||0)+Number(m.cantidad);
   });
@@ -276,8 +240,33 @@ function consumoUsuarios(){
     .join("");
 }
 
+// 📊 GRÁFICO SIMPLE
+function dibujarGrafico(bajo, alto, crit){
+
+  const ctx = document.getElementById("grafico").getContext("2d");
+
+  const data = [bajo, alto, crit];
+  const total = data.reduce((a,b)=>a+b,0);
+
+  let start = 0;
+
+  data.forEach((v,i)=>{
+    let angle = (v/total) * Math.PI*2;
+
+    ctx.beginPath();
+    ctx.moveTo(150,100);
+    ctx.arc(150,100,80,start,start+angle);
+    ctx.fillStyle = ["#ffb3b3","#0E3471","#fff3b0"][i];
+    ctx.fill();
+
+    start += angle;
+  });
+}
+
 // NAV
-function volver(){ location="index.html"; }
+function irInicio(){ location="index.html"; }
+function irAlmacen(){ location="almacen.html"; }
+function irHistorico(){ location="historico.html"; }
 
 </script>
 
