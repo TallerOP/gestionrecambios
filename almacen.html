@@ -40,7 +40,7 @@ body::before {
 }
 
 /* CONTENEDOR */
-.container { padding:15px; }
+.container { padding:10px; }
 
 /* BOTONES */
 button {
@@ -48,26 +48,27 @@ button {
   border:none;
   border-radius:8px;
   cursor:pointer;
+  background:#ddd;
 }
-
-.btn { background:#ddd; }
 
 /* BUSCADOR */
 #buscador {
   width:100%;
   padding:10px;
   margin:10px 0;
+  box-sizing:border-box;
 }
 
 /* FILTROS */
 .filtros {
   display:flex;
   gap:5px;
-  margin:10px 0;
+  margin-bottom:10px;
 }
-.filtros button {
+
+.filtros select {
   flex:1;
-  font-size:12px;
+  padding:8px;
 }
 
 /* TABLA */
@@ -87,15 +88,13 @@ button {
   text-align:left;
 }
 
-/* FILAS */
 .table tr {
   border-bottom:1px solid rgba(0,0,0,0.3);
 }
 
-/* HEADER FIJO */
 .table thead th {
   position: sticky;
-  top: 90px;
+  top: 120px;
   background:#f5f5f5;
   z-index:500;
   cursor:pointer;
@@ -118,16 +117,15 @@ button {
 
 <div class="container">
 
-<button onclick="volver()" class="btn">⬅ Volver</button>
-<button onclick="irHistorico()" class="btn">📊 Histórico</button>
+<button onclick="volver()">⬅ Volver</button>
+<button onclick="irHistorico()">📊 Histórico</button>
 
 <input id="buscador" placeholder="Buscar..." oninput="filtrar()">
 
 <div class="filtros">
-  <button onclick="setFiltro('todos')">Todos</button>
-  <button onclick="setFiltro('criticos')">Críticos</button>
-  <button onclick="setFiltro('bajo')">Bajo</button>
-  <button onclick="setFiltro('alto')">Alto</button>
+  <select id="filtroAlmacen" onchange="filtrar()">
+    <option value="">Todos los almacenes</option>
+  </select>
 </div>
 
 <table class="table">
@@ -135,6 +133,7 @@ button {
 <tr>
 <th onclick="ordenar('codigo')">Código</th>
 <th onclick="ordenar('nombre')">Nombre</th>
+<th onclick="ordenar('almacen')">Almacén</th>
 <th onclick="ordenar('ubicacion')">Ubicación</th>
 <th onclick="ordenar('stock')">Stock</th>
 <th onclick="ordenar('min')">Mín</th>
@@ -148,67 +147,55 @@ button {
 </div>
 
 <script>
-const API_URL = "https://script.google.com/macros/s/AKfycbxyURi4bcmWwsaZ4vdXUUVnr_Xu7y9BRG75tITfdwh-zgSIFpvC2lyKJLTT3XTFNS5XZA/exec?v=15";
+const API_URL = "https://script.google.com/macros/s/AKfycbxyURi4bcmWwsaZ4vdXUUVnr_Xu7y9BRG75tITfdwh-zgSIFpvC2lyKJLTT3XTFNS5XZA/exec?v=30";
 
 // SESIÓN
 let sesion = JSON.parse(localStorage.getItem("sesion"));
 if (!sesion) window.location.href="index.html";
 
-sesion.timestamp = Date.now();
-localStorage.setItem("sesion", JSON.stringify(sesion));
-
 let DATA = [];
 let FILTRADOS = [];
-let filtroActual = "todos";
 let ordenActual = "";
 let asc = true;
 
 window.onload = async () => {
-  try {
-    const res = await fetch(API_URL);
-    const json = await res.json();
+  const res = await fetch(API_URL);
+  const json = await res.json();
 
-    DATA = json.recambios || [];
-    aplicarFiltros();
+  // 🔥 SOLO ACTIVOS
+  DATA = (json.recambios || []).filter(r =>
+    String(r.activo).toUpperCase() === "SI"
+  );
 
-  } catch (e) {
-    alert("Error cargando datos");
-    console.error(e);
-  }
+  cargarAlmacenes();
+  filtrar();
 };
 
-// FILTROS
-function setFiltro(f) {
-  filtroActual = f;
-  aplicarFiltros();
+// CARGAR FILTRO ALMACEN
+function cargarAlmacenes() {
+  let almacenes = [...new Set(DATA.map(r => r.almacen).filter(a => a))];
+
+  filtroAlmacen.innerHTML = `
+    <option value="">Todos los almacenes</option>
+    ${almacenes.map(a => `<option value="${a}">${a}</option>`).join("")}
+  `;
 }
 
+// FILTRO
 function filtrar() {
-  aplicarFiltros();
-}
-
-function aplicarFiltros() {
-  let v = (buscador.value || "").toLowerCase();
+  let v = buscador.value.toLowerCase();
+  let almacenSel = filtroAlmacen.value;
 
   FILTRADOS = DATA.filter(r => {
 
-    const codigo = String(r.codigo || "").toLowerCase();
-    const nombre = String(r.nombre || "").toLowerCase();
+    let matchBusqueda =
+      String(r.codigo).toLowerCase().includes(v) ||
+      String(r.nombre).toLowerCase().includes(v);
 
-    const matchBusqueda = codigo.includes(v) || nombre.includes(v);
+    let matchAlmacen =
+      !almacenSel || r.almacen == almacenSel;
 
-    let matchFiltro = true;
-
-    if (filtroActual === "criticos")
-      matchFiltro = String(r.critico || "").toUpperCase() === "SI";
-
-    if (filtroActual === "bajo")
-      matchFiltro = Number(r.stock) < Number(r.min);
-
-    if (filtroActual === "alto")
-      matchFiltro = Number(r.stock) > Number(r.max);
-
-    return matchBusqueda && matchFiltro;
+    return matchBusqueda && matchAlmacen;
   });
 
   render();
@@ -216,27 +203,17 @@ function aplicarFiltros() {
 
 // ORDENAR
 function ordenar(campo) {
-
   asc = (ordenActual === campo) ? !asc : true;
   ordenActual = campo;
 
   FILTRADOS.sort((a,b)=>{
+    let v1 = a[campo] || "";
+    let v2 = b[campo] || "";
 
-    let v1 = a[campo];
-    let v2 = b[campo];
+    v1 = isNaN(v1) ? v1.toLowerCase() : Number(v1);
+    v2 = isNaN(v2) ? v2.toLowerCase() : Number(v2);
 
-    // Ubicación con tilde
-    if (campo === "ubicacion") {
-      v1 = a["Ubicación"] || a.ubicacion || "";
-      v2 = b["Ubicación"] || b.ubicacion || "";
-    }
-
-    v1 = isNaN(v1) ? String(v1).toLowerCase() : Number(v1);
-    v2 = isNaN(v2) ? String(v2).toLowerCase() : Number(v2);
-
-    if (v1 > v2) return asc ? 1 : -1;
-    if (v1 < v2) return asc ? -1 : 1;
-    return 0;
+    return (v1 > v2 ? 1 : -1) * (asc ? 1 : -1);
   });
 
   render();
@@ -244,30 +221,29 @@ function ordenar(campo) {
 
 // RENDER
 function render() {
-
   tabla.innerHTML = FILTRADOS.map(r => {
 
-    const stock = Number(r.stock) || 0;
-    const min = Number(r.min) || 0;
-    const max = Number(r.max) || 0;
+    let stock = Number(r.stock)||0;
+    let min = Number(r.min)||0;
+    let max = Number(r.max)||0;
 
-    const ubicacion = r["Ubicación"] || r.ubicacion || "";
+    let ubicacion = r["Ubicación"] || r.ubicacion || "";
 
     let clase = "";
-
     if (stock < min) clase = "bajo";
     else if (stock > max) clase = "alto";
-    else if (String(r.critico || "").toUpperCase() === "SI") clase = "critico";
+    else if (String(r.critico).toUpperCase() === "SI") clase = "critico";
 
     return `
       <tr class="${clase}">
-        <td>${r.codigo || ""}</td>
-        <td class="nombre">${r.nombre || ""}</td>
+        <td>${r.codigo}</td>
+        <td class="nombre">${r.nombre}</td>
+        <td>${r.almacen || ""}</td>
         <td>${ubicacion}</td>
         <td>${stock}</td>
         <td>${min}</td>
         <td>${max}</td>
-        <td>${r.critico || ""}</td>
+        <td>${r.critico}</td>
       </tr>
     `;
   }).join("");
