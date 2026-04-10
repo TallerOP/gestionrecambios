@@ -7,58 +7,106 @@
 <meta name="viewport" content="width=device-width, initial-scale=1">
 
 <style>
-body { font-family: Arial; margin:0; }
-
-.header {
-  position:sticky;
-  top:0;
+body {
+  font-family: Arial;
+  margin:0;
   background:white;
-  padding:10px;
-  text-align:center;
-  z-index:1000;
+  color:black;
 }
 
-input, select {
+body::before {
+  content:"";
+  position:fixed;
+  width:100%;
+  height:100%;
+  background:url("op.png") center no-repeat;
+  background-size:60%;
+  opacity:0.3;
+  z-index:-1;
+}
+
+.header {
+  position: sticky;
+  top: 0;
+  z-index: 1000;
+  display:flex;
+  flex-direction:column;
+  align-items:center;
+  background: rgba(255,255,255,0.95);
+  padding:12px;
+  box-shadow:0 2px 8px rgba(0,0,0,0.08);
+}
+
+.container { padding:10px; }
+
+button {
+  padding:10px;
+  border:none;
+  border-radius:8px;
+  cursor:pointer;
+  background:#ddd;
+}
+
+button:hover { opacity:0.8; }
+
+/* BUSCADOR */
+#buscador {
   width:100%;
   padding:10px;
-  margin:5px 0;
+  margin:10px 0;
   box-sizing:border-box;
 }
 
+/* FILTROS */
 .filtros {
   display:flex;
   gap:5px;
+  margin-bottom:10px;
 }
 
 .filtros button {
   flex:1;
-  padding:10px;
-  cursor:pointer;
+  font-size:12px;
 }
 
-table {
+/* SELECT */
+select {
+  width:100%;
+  padding:8px;
+  margin-bottom:10px;
+}
+
+/* TABLA */
+.table {
   width:100%;
   border-collapse:collapse;
+  font-size:14px;
 }
 
-th, td {
+.table th, .table td {
   padding:8px;
+  border-right:1px solid rgba(0,0,0,0.05);
   text-align:center;
 }
 
-td.nombre { text-align:left; }
+.table td.nombre { text-align:left; }
 
-tr { border-bottom:1px solid #ccc; }
+.table tr {
+  border-bottom:1px solid rgba(0,0,0,0.3);
+}
 
+.table thead th {
+  position: sticky;
+  top: 160px;
+  background:#f5f5f5;
+  z-index:500;
+  cursor:pointer;
+}
+
+/* COLORES */
 .bajo { background:#ffb3b3; }
 .alto { background:#0E3471; color:white; }
-.critico { background:#fff3b0; }
-
-thead th {
-  position:sticky;
-  top:160px;
-  background:#eee;
-}
+.critico { background:#fff3b0; font-weight:bold; }
 
 </style>
 </head>
@@ -66,34 +114,39 @@ thead th {
 <body>
 
 <div class="header">
-  <h3>Almacén</h3>
+  <img src="op.png" height="40">
+  <h3>Gestión de recambios OP Mobility Pedrola</h3>
 </div>
 
-<div style="padding:10px;">
+<div class="container">
 
 <button onclick="volver()">⬅ Volver</button>
+<button onclick="irHistorico()">📊 Histórico</button>
 
 <input id="buscador" placeholder="Buscar..." oninput="filtrar()">
 
-<select id="filtroAlmacen" onchange="filtrar()"></select>
+<select id="filtroAlmacen" onchange="filtrar()">
+  <option value="">Todos los almacenes</option>
+</select>
 
 <div class="filtros">
   <button onclick="setEstado('todos')">Todos</button>
-  <button onclick="setEstado('bajo')">Bajo</button>
-  <button onclick="setEstado('alto')">Alto</button>
+  <button onclick="setEstado('bajo')">Bajo stock</button>
+  <button onclick="setEstado('alto')">Alto stock</button>
   <button onclick="setEstado('critico')">Críticos</button>
 </div>
 
-<table>
+<table class="table">
 <thead>
 <tr>
-<th>Código</th>
-<th>Nombre</th>
-<th>Almacén</th>
-<th>Stock</th>
-<th>Mín</th>
-<th>Máx</th>
-<th>Crítico</th>
+<th onclick="ordenar('codigo')">Código</th>
+<th onclick="ordenar('nombre')">Nombre</th>
+<th onclick="ordenar('almacen')">Almacén</th>
+<th onclick="ordenar('ubicacion')">Ubicación</th>
+<th onclick="ordenar('stock')">Stock</th>
+<th onclick="ordenar('min')">Mín</th>
+<th onclick="ordenar('max')">Máx</th>
+<th onclick="ordenar('critico')">Crítico</th>
 </tr>
 </thead>
 <tbody id="tabla"></tbody>
@@ -102,113 +155,130 @@ thead th {
 </div>
 
 <script>
-const API_URL = "https://script.google.com/macros/s/AKfycbxyURi4bcmWwsaZ4vdXUUVnr_Xu7y9BRG75tITfdwh-zgSIFpvC2lyKJLTT3XTFNS5XZA/exec?v=50";
-
-let DATA=[];
-let FILTRADOS=[];
-let filtroEstado="todos";
+const API_URL = "https://script.google.com/macros/s/AKfycbxyURi4bcmWwsaZ4vdXUUVnr_Xu7y9BRG75tITfdwh-zgSIFpvC2lyKJLTT3XTFNS5XZA/exec?v=40";
 
 // SESIÓN
-if (!localStorage.getItem("sesion")) location="index.html";
+let sesion = JSON.parse(localStorage.getItem("sesion"));
+if (!sesion) window.location.href="index.html";
 
-// INIT
-window.onload = async ()=>{
+let DATA = [];
+let FILTRADOS = [];
+let filtroEstado = "todos";
+let ordenActual = "";
+let asc = true;
 
-  let cache = localStorage.getItem("recambios_cache");
-
-  if (cache) {
-    DATA = JSON.parse(cache);
-    cargarAlmacenes();
-    filtrar();
-  }
-
+window.onload = async () => {
   const res = await fetch(API_URL);
   const json = await res.json();
 
-  DATA = json.recambios.filter(r => r.activo==="SI");
-
-  localStorage.setItem("recambios_cache", JSON.stringify(DATA));
+  DATA = (json.recambios || []).filter(r =>
+    String(r.activo).toUpperCase() === "SI"
+  );
 
   cargarAlmacenes();
   filtrar();
 };
 
-// ALMACENES
-function cargarAlmacenes(){
-  let lista=[...new Set(DATA.map(r=>r.almacen))];
-  filtroAlmacen.innerHTML='<option value="">Todos</option>'+
-    lista.map(a=>`<option>${a}</option>`).join('');
+// CARGAR ALMACENES
+function cargarAlmacenes() {
+  let lista = [...new Set(DATA.map(r => r.almacen).filter(a=>a))];
+
+  filtroAlmacen.innerHTML = `
+    <option value="">Todos los almacenes</option>
+    ${lista.map(a=>`<option value="${a}">${a}</option>`).join("")}
+  `;
 }
 
 // FILTROS
-function setEstado(e){ filtroEstado=e; filtrar(); }
+function setEstado(e){
+  filtroEstado = e;
+  filtrar();
+}
 
-function filtrar(){
+function filtrar() {
+  let v = buscador.value.toLowerCase();
+  let almacenSel = filtroAlmacen.value;
 
-  let v=buscador.value.toLowerCase();
-  let alm=filtroAlmacen.value;
+  FILTRADOS = DATA.filter(r => {
 
-  FILTRADOS=DATA.filter(r=>{
+    let stock = Number(r.stock)||0;
+    let min = Number(r.min)||0;
+    let max = Number(r.max)||0;
 
-    let stock=Number(r.stock);
-    let min=Number(r.min);
-    let max=Number(r.max);
+    let matchBusqueda =
+      String(r.codigo).toLowerCase().includes(v) ||
+      String(r.nombre).toLowerCase().includes(v);
 
-    let ok=true;
+    let matchAlmacen =
+      !almacenSel || r.almacen == almacenSel;
 
-    if (filtroEstado==="bajo") ok=stock<min;
-    if (filtroEstado==="alto") ok=stock>max;
-    if (filtroEstado==="critico") ok=r.critico==="SI";
+    let matchEstado = true;
 
-    return ok &&
-      (!alm || r.almacen===alm) &&
-      (r.codigo.toLowerCase().includes(v) || r.nombre.toLowerCase().includes(v));
+    if (filtroEstado === "bajo")
+      matchEstado = stock < min;
+
+    if (filtroEstado === "alto")
+      matchEstado = stock > max;
+
+    if (filtroEstado === "critico")
+      matchEstado = String(r.critico).toUpperCase() === "SI";
+
+    return matchBusqueda && matchAlmacen && matchEstado;
   });
 
   render();
 }
 
-// RENDER RÁPIDO
+// ORDEN
+function ordenar(campo){
+  asc = (ordenActual === campo) ? !asc : true;
+  ordenActual = campo;
+
+  FILTRADOS.sort((a,b)=>{
+    let v1 = a[campo] || "";
+    let v2 = b[campo] || "";
+
+    v1 = isNaN(v1) ? v1.toLowerCase() : Number(v1);
+    v2 = isNaN(v2) ? v2.toLowerCase() : Number(v2);
+
+    return (v1 > v2 ? 1 : -1) * (asc ? 1 : -1);
+  });
+
+  render();
+}
+
+// RENDER
 function render(){
+  tabla.innerHTML = FILTRADOS.map(r=>{
 
-  tabla.innerHTML="";
-  let i=0;
+    let stock = Number(r.stock)||0;
+    let min = Number(r.min)||0;
+    let max = Number(r.max)||0;
 
-  function chunk(){
+    let ubicacion = r["Ubicación"] || r.ubicacion || "";
 
-    let html="";
+    let clase="";
+    if(stock < min) clase="bajo";
+    else if(stock > max) clase="alto";
+    else if(String(r.critico).toUpperCase()==="SI") clase="critico";
 
-    for(let j=0;j<50 && i<FILTRADOS.length;j++,i++){
-
-      let r=FILTRADOS[i];
-
-      let clase="";
-      if(r.stock<r.min) clase="bajo";
-      else if(r.stock>r.max) clase="alto";
-      else if(r.critico==="SI") clase="critico";
-
-      html+=`
-      <tr class="${clase}">
-        <td>${r.codigo}</td>
-        <td class="nombre">${r.nombre}</td>
-        <td>${r.almacen}</td>
-        <td>${r.stock}</td>
-        <td>${r.min}</td>
-        <td>${r.max}</td>
-        <td>${r.critico}</td>
-      </tr>`;
-    }
-
-    tabla.insertAdjacentHTML("beforeend",html);
-
-    if(i<FILTRADOS.length) requestAnimationFrame(chunk);
-  }
-
-  chunk();
+    return `
+    <tr class="${clase}">
+      <td>${r.codigo}</td>
+      <td class="nombre">${r.nombre}</td>
+      <td>${r.almacen||""}</td>
+      <td>${ubicacion}</td>
+      <td>${stock}</td>
+      <td>${min}</td>
+      <td>${max}</td>
+      <td>${r.critico}</td>
+    </tr>`;
+  }).join("");
 }
 
 // NAV
-function volver(){ location="index.html"; }
+function volver(){ window.location.href="index.html"; }
+function irHistorico(){ window.location.href="historico.html"; }
 
 </script>
 
