@@ -14,7 +14,6 @@ body {
   color:black;
 }
 
-/* FONDO */
 body::before {
   content:"";
   position:fixed;
@@ -26,7 +25,6 @@ body::before {
   z-index:-1;
 }
 
-/* HEADER */
 .header {
   position: sticky;
   top: 0;
@@ -39,10 +37,8 @@ body::before {
   box-shadow:0 2px 8px rgba(0,0,0,0.08);
 }
 
-/* CONTENEDOR */
 .container { padding:10px; }
 
-/* BOTONES */
 button {
   padding:10px;
   border:none;
@@ -50,6 +46,8 @@ button {
   cursor:pointer;
   background:#ddd;
 }
+
+button:hover { opacity:0.8; }
 
 /* BUSCADOR */
 #buscador {
@@ -66,9 +64,16 @@ button {
   margin-bottom:10px;
 }
 
-.filtros select {
+.filtros button {
   flex:1;
+  font-size:12px;
+}
+
+/* SELECT */
+select {
+  width:100%;
   padding:8px;
+  margin-bottom:10px;
 }
 
 /* TABLA */
@@ -84,9 +89,7 @@ button {
   text-align:center;
 }
 
-.table td.nombre {
-  text-align:left;
-}
+.table td.nombre { text-align:left; }
 
 .table tr {
   border-bottom:1px solid rgba(0,0,0,0.3);
@@ -94,7 +97,7 @@ button {
 
 .table thead th {
   position: sticky;
-  top: 120px;
+  top: 160px;
   background:#f5f5f5;
   z-index:500;
   cursor:pointer;
@@ -122,10 +125,15 @@ button {
 
 <input id="buscador" placeholder="Buscar..." oninput="filtrar()">
 
+<select id="filtroAlmacen" onchange="filtrar()">
+  <option value="">Todos los almacenes</option>
+</select>
+
 <div class="filtros">
-  <select id="filtroAlmacen" onchange="filtrar()">
-    <option value="">Todos los almacenes</option>
-  </select>
+  <button onclick="setEstado('todos')">Todos</button>
+  <button onclick="setEstado('bajo')">Bajo stock</button>
+  <button onclick="setEstado('alto')">Alto stock</button>
+  <button onclick="setEstado('critico')">Críticos</button>
 </div>
 
 <table class="table">
@@ -147,7 +155,7 @@ button {
 </div>
 
 <script>
-const API_URL = "https://script.google.com/macros/s/AKfycbxyURi4bcmWwsaZ4vdXUUVnr_Xu7y9BRG75tITfdwh-zgSIFpvC2lyKJLTT3XTFNS5XZA/exec?v=30";
+const API_URL = "https://script.google.com/macros/s/AKfycbxyURi4bcmWwsaZ4vdXUUVnr_Xu7y9BRG75tITfdwh-zgSIFpvC2lyKJLTT3XTFNS5XZA/exec?v=40";
 
 // SESIÓN
 let sesion = JSON.parse(localStorage.getItem("sesion"));
@@ -155,6 +163,7 @@ if (!sesion) window.location.href="index.html";
 
 let DATA = [];
 let FILTRADOS = [];
+let filtroEstado = "todos";
 let ordenActual = "";
 let asc = true;
 
@@ -162,7 +171,6 @@ window.onload = async () => {
   const res = await fetch(API_URL);
   const json = await res.json();
 
-  // 🔥 SOLO ACTIVOS
   DATA = (json.recambios || []).filter(r =>
     String(r.activo).toUpperCase() === "SI"
   );
@@ -171,22 +179,31 @@ window.onload = async () => {
   filtrar();
 };
 
-// CARGAR FILTRO ALMACEN
+// CARGAR ALMACENES
 function cargarAlmacenes() {
-  let almacenes = [...new Set(DATA.map(r => r.almacen).filter(a => a))];
+  let lista = [...new Set(DATA.map(r => r.almacen).filter(a=>a))];
 
   filtroAlmacen.innerHTML = `
     <option value="">Todos los almacenes</option>
-    ${almacenes.map(a => `<option value="${a}">${a}</option>`).join("")}
+    ${lista.map(a=>`<option value="${a}">${a}</option>`).join("")}
   `;
 }
 
-// FILTRO
+// FILTROS
+function setEstado(e){
+  filtroEstado = e;
+  filtrar();
+}
+
 function filtrar() {
   let v = buscador.value.toLowerCase();
   let almacenSel = filtroAlmacen.value;
 
   FILTRADOS = DATA.filter(r => {
+
+    let stock = Number(r.stock)||0;
+    let min = Number(r.min)||0;
+    let max = Number(r.max)||0;
 
     let matchBusqueda =
       String(r.codigo).toLowerCase().includes(v) ||
@@ -195,14 +212,25 @@ function filtrar() {
     let matchAlmacen =
       !almacenSel || r.almacen == almacenSel;
 
-    return matchBusqueda && matchAlmacen;
+    let matchEstado = true;
+
+    if (filtroEstado === "bajo")
+      matchEstado = stock < min;
+
+    if (filtroEstado === "alto")
+      matchEstado = stock > max;
+
+    if (filtroEstado === "critico")
+      matchEstado = String(r.critico).toUpperCase() === "SI";
+
+    return matchBusqueda && matchAlmacen && matchEstado;
   });
 
   render();
 }
 
-// ORDENAR
-function ordenar(campo) {
+// ORDEN
+function ordenar(campo){
   asc = (ordenActual === campo) ? !asc : true;
   ordenActual = campo;
 
@@ -220,8 +248,8 @@ function ordenar(campo) {
 }
 
 // RENDER
-function render() {
-  tabla.innerHTML = FILTRADOS.map(r => {
+function render(){
+  tabla.innerHTML = FILTRADOS.map(r=>{
 
     let stock = Number(r.stock)||0;
     let min = Number(r.min)||0;
@@ -229,29 +257,29 @@ function render() {
 
     let ubicacion = r["Ubicación"] || r.ubicacion || "";
 
-    let clase = "";
-    if (stock < min) clase = "bajo";
-    else if (stock > max) clase = "alto";
-    else if (String(r.critico).toUpperCase() === "SI") clase = "critico";
+    let clase="";
+    if(stock < min) clase="bajo";
+    else if(stock > max) clase="alto";
+    else if(String(r.critico).toUpperCase()==="SI") clase="critico";
 
     return `
-      <tr class="${clase}">
-        <td>${r.codigo}</td>
-        <td class="nombre">${r.nombre}</td>
-        <td>${r.almacen || ""}</td>
-        <td>${ubicacion}</td>
-        <td>${stock}</td>
-        <td>${min}</td>
-        <td>${max}</td>
-        <td>${r.critico}</td>
-      </tr>
-    `;
+    <tr class="${clase}">
+      <td>${r.codigo}</td>
+      <td class="nombre">${r.nombre}</td>
+      <td>${r.almacen||""}</td>
+      <td>${ubicacion}</td>
+      <td>${stock}</td>
+      <td>${min}</td>
+      <td>${max}</td>
+      <td>${r.critico}</td>
+    </tr>`;
   }).join("");
 }
 
 // NAV
 function volver(){ window.location.href="index.html"; }
 function irHistorico(){ window.location.href="historico.html"; }
+
 </script>
 
 </body>
