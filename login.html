@@ -1,0 +1,64 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="UTF-8">
+<title>Login</title>
+
+<meta name="viewport" content="width=device-width, initial-scale=1">
+
+<style>
+body { font-family: Arial; padding:20px; }
+
+input, button {
+  width:100%;
+  padding:12px;
+  margin:5px 0;
+}
+
+button {
+  background:#0E3471;
+  color:white;
+  border:none;
+}
+</style>
+</head>
+
+<body>
+
+<h2>Login</h2>
+
+<input id="nombre" placeholder="Usuario">
+<input id="pin" type="password" placeholder="PIN">
+<button onclick="login()">Entrar</button>
+
+<script>
+const API_URL = "https://script.google.com/macros/s/AKfycbxyURi4bcmWwsaZ4vdXUUVnr_Xu7y9BRG75tITfdwh-zgSIFpvC2lyKJLTT3XTFNS5XZA/exec?v=100";
+
+let DATA={};
+
+window.onload = async ()=>{
+  const res = await fetch(API_URL);
+  DATA = await res.json();
+};
+
+function login(){
+
+  const user = DATA.usuarios.find(u =>
+    u.nombre === nombre.value &&
+    u.pin == pin.value &&
+    u.activo === "SI"
+  );
+
+  if (!user) return alert("Error");
+
+  localStorage.setItem("sesion", JSON.stringify({
+    usuario: user.nombre,
+    almacen: user.almacen || "TODOS"
+  }));
+
+  location="index.html";
+}
+</script>
+
+</body>
+</html>
