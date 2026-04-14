@@ -6,13 +6,8 @@
 <meta name="viewport" content="width=device-width, initial-scale=1">
 
 <style>
-body {
-  font-family: Arial;
-  margin:0;
-  background:white;
-}
+body { font-family: Arial; margin:0; background:white; }
 
-/* FONDO */
 body::before {
   content:"";
   position:fixed;
@@ -24,51 +19,27 @@ body::before {
   z-index:-1;
 }
 
-/* HEADER */
 .header {
   position: sticky;
   top:0;
-  z-index:1000;
   text-align:center;
   padding:15px;
   background:rgba(255,255,255,0.95);
   box-shadow:0 2px 8px rgba(0,0,0,0.1);
 }
 
-/* CONTENEDOR */
 .container { padding:10px; }
 
-/* BOTONES */
-button {
-  width:100%;
-  padding:12px;
-  margin:5px 0;
-  border:none;
-  border-radius:10px;
-  background:#0E3471;
-  color:white;
-  cursor:pointer;
-  box-shadow:0 4px 0 rgba(0,0,0,0.2);
-}
-
-button:active {
-  transform:translateY(2px);
-  box-shadow:0 2px 0 rgba(0,0,0,0.2);
-}
-
-/* GRID KPI */
 .kpis {
   display:grid;
   grid-template-columns:1fr 1fr;
   gap:10px;
 }
 
-/* CARDS */
 .card {
   padding:20px;
   border-radius:12px;
   text-align:center;
-  font-size:14px;
   cursor:pointer;
 }
 
@@ -77,7 +48,17 @@ button:active {
 .amarillo { background:#fff3b0; }
 .verde { background:#d4edda; }
 
-/* TABLAS */
+button {
+  width:100%;
+  padding:10px;
+  margin:5px 0;
+  border:none;
+  border-radius:10px;
+  background:#0E3471;
+  color:white;
+  cursor:pointer;
+}
+
 table {
   width:100%;
   border-collapse:collapse;
@@ -93,21 +74,14 @@ th, td {
 
 td.nombre { text-align:left; }
 
-/* SECCIONES */
-.seccion {
-  margin-top:15px;
-}
-
-/* FILTROS TIEMPO */
 .filtrosTiempo {
   display:flex;
   gap:5px;
 }
+.filtrosTiempo button { flex:1; }
 
-.filtrosTiempo button {
-  flex:1;
-  font-size:12px;
-}
+.seccion { margin-top:15px; }
+
 </style>
 </head>
 
@@ -120,28 +94,24 @@ td.nombre { text-align:left; }
 
 <div class="container">
 
-<!-- KPIs -->
 <div class="kpis" id="kpis"></div>
 
-<!-- CONSUMO -->
+<div id="tablaBajo"></div>
+<div id="tablaAlto"></div>
+
 <div class="seccion">
   <h4>📊 Consumo</h4>
 
   <div class="filtrosTiempo">
-    <button onclick="setFiltroTiempo('hoy')">Hoy</button>
-    <button onclick="setFiltroTiempo('semana')">Semana</button>
-    <button onclick="setFiltroTiempo('mes')">Mes</button>
-    <button onclick="setFiltroTiempo('siempre')">Siempre</button>
+    <button onclick="setFiltro('hoy')">Hoy</button>
+    <button onclick="setFiltro('semana')">Semana</button>
+    <button onclick="setFiltro('mes')">Mes</button>
+    <button onclick="setFiltro('siempre')">Siempre</button>
   </div>
 
   <div id="consumo"></div>
 </div>
 
-<!-- TABLAS -->
-<div id="tablaBajo"></div>
-<div id="tablaAlto"></div>
-
-<!-- HISTÓRICO -->
 <div class="seccion">
   <h4>📜 Histórico Consumibles</h4>
   <table>
@@ -161,9 +131,10 @@ td.nombre { text-align:left; }
 </div>
 
 <script>
-const API_URL="https://script.google.com/macros/s/AKfycbxyURi4bcmWwsaZ4vdXUUVnr_Xu7y9BRG75tITfdwh-zgSIFpvC2lyKJLTT3XTFNS5XZA/exec?v=70";
+const API_URL="https://script.google.com/macros/s/AKfycbxyURi4bcmWwsaZ4vdXUUVnr_Xu7y9BRG75tITfdwh-zgSIFpvC2lyKJLTT3XTFNS5XZA/exec?v=80";
 
-let DATA=[], MOV=[];
+let REC=[];
+let MOV=[];
 let mostrarBajo=false;
 let mostrarAlto=false;
 let filtroTiempo="siempre";
@@ -173,7 +144,9 @@ window.onload=async()=>{
   const res=await fetch(API_URL);
   const json=await res.json();
 
-  DATA=(json.recambios||[]).filter(r=>r.almacen==="Consumibles");
+  REC=(json.recambios||[])
+    .filter(r=>r.almacen==="Consumibles");
+
   MOV=json.movimientos||[];
 
   renderKPIs();
@@ -184,9 +157,9 @@ window.onload=async()=>{
 // KPIs
 function renderKPIs(){
 
-  let bajo=DATA.filter(r=>r.stock<r.min);
-  let alto=DATA.filter(r=>r.stock>r.max);
-  let crit=DATA.filter(r=>r.critico==="SI");
+  let bajo=REC.filter(r=>Number(r.stock)<Number(r.min));
+  let alto=REC.filter(r=>Number(r.stock)>Number(r.max));
+  let crit=REC.filter(r=>String(r.critico).toUpperCase()==="SI");
 
   kpis.innerHTML=`
     <div class="card rojo" onclick="toggleBajo()">
@@ -202,27 +175,20 @@ function renderKPIs(){
     </div>
 
     <div class="card verde">
-      Total<br><b>${DATA.length}</b>
+      Total<br><b>${REC.length}</b>
     </div>
   `;
 }
 
 // TOGGLE
-function toggleBajo(){
-  mostrarBajo=!mostrarBajo;
-  renderTablas();
-}
-
-function toggleAlto(){
-  mostrarAlto=!mostrarAlto;
-  renderTablas();
-}
+function toggleBajo(){ mostrarBajo=!mostrarBajo; renderTablas(); }
+function toggleAlto(){ mostrarAlto=!mostrarAlto; renderTablas(); }
 
 // TABLAS
 function renderTablas(){
 
-  let bajo=DATA.filter(r=>r.stock<r.min);
-  let alto=DATA.filter(r=>r.stock>r.max);
+  let bajo=REC.filter(r=>Number(r.stock)<Number(r.min));
+  let alto=REC.filter(r=>Number(r.stock)>Number(r.max));
 
   tablaBajo.innerHTML = mostrarBajo ? generarTabla("Bajo mínimo", bajo) : "";
   tablaAlto.innerHTML = mostrarAlto ? generarTabla("Sobre máximo", alto) : "";
@@ -247,12 +213,13 @@ function generarTabla(titulo,data){
   </div>`;
 }
 
-// CONSUMO
-function setFiltroTiempo(f){
+// FILTRO TIEMPO
+function setFiltro(f){
   filtroTiempo=f;
   renderConsumo();
 }
 
+// CONSUMO
 function renderConsumo(){
 
   let now=new Date();
@@ -265,34 +232,53 @@ function renderConsumo(){
       return fecha.toDateString()===now.toDateString();
 
     if(filtroTiempo==="semana")
-      return (now-fecha)<7*24*60*60*1000;
+      return (now-fecha)<7*86400000;
 
     if(filtroTiempo==="mes")
-      return (now-fecha)<30*24*60*60*1000;
+      return (now-fecha)<30*86400000;
 
     return true;
   });
 
-  let total=filtrado
-    .filter(m=>m.tipo==="salida")
-    .reduce((a,b)=>a+Number(b.cantidad),0);
+  // SOLO CONSUMIBLES
+  filtrado = filtrado.filter(m =>
+    REC.find(r=>r.codigo==m.codigo)
+  );
 
-  consumo.innerHTML=`Consumo total: <b>${total}</b>`;
+  // AGRUPAR CONSUMO
+  let uso={};
+
+  filtrado
+    .filter(m=>m.tipo==="salida")
+    .forEach(m=>{
+      let key=m.codigo;
+      uso[key]=(uso[key]||0)+Number(m.cantidad);
+    });
+
+  let lista = Object.entries(uso)
+    .sort((a,b)=>b[1]-a[1]);
+
+  consumo.innerHTML=`
+    Consumo total: <b>${lista.reduce((a,b)=>a+b[1],0)}</b><br><br>
+    ${lista.map(([cod,val])=>{
+      let nombre = REC.find(r=>r.codigo==cod)?.nombre || "";
+      return `${cod} - ${nombre}: ${val}`;
+    }).join("<br>")}
+  `;
 }
 
 // HISTÓRICO
 function renderHist(){
 
-  let movConsumibles = MOV.filter(m=>{
-    let r = DATA.find(x=>x.codigo==m.codigo);
-    return r;
-  });
+  let movConsumibles = MOV.filter(m =>
+    REC.find(r=>r.codigo==m.codigo)
+  );
 
   hist.innerHTML = movConsumibles.slice(-20).reverse().map(m=>`
     <tr>
       <td>${m.fecha}</td>
       <td>${m.codigo}</td>
-      <td>${DATA.find(r=>r.codigo==m.codigo)?.nombre || ""}</td>
+      <td>${REC.find(r=>r.codigo==m.codigo)?.nombre || ""}</td>
       <td>${m.tipo}</td>
       <td>${m.cantidad}</td>
     </tr>
