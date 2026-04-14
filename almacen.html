@@ -46,31 +46,19 @@ button {
 }
 
 button:hover { filter:brightness(1.1); }
-button:active { transform:translateY(2px); }
-
-/* NAV */
-.nav { display:flex; gap:6px; }
-.nav button { flex:1; }
 
 /* TABLA */
-table {
-  width:100%;
-  border-collapse:collapse;
-  font-size:13px;
-}
-
-th, td {
-  padding:8px;
-  text-align:center;
-}
-
+table { width:100%; border-collapse:collapse; font-size:13px; }
+th, td { padding:8px; text-align:center; }
 td.nombre { text-align:left; }
-
 tr { border-bottom:1px solid rgba(0,0,0,0.2); }
 
 .bajo { background:#ffb3b3; }
 .alto { background:#0E3471; color:white; }
 .critico { background:#fff3b0; font-weight:bold; }
+
+.nav { display:flex; gap:6px; }
+.nav button { flex:1; }
 
 </style>
 </head>
@@ -84,7 +72,7 @@ tr { border-bottom:1px solid rgba(0,0,0,0.2); }
 
 <div class="container">
 
-<input id="buscar" placeholder="Buscar recambio...">
+<input id="buscar" placeholder="Buscar...">
 
 <div class="nav">
   <button onclick="location='index.html'">Inicio</button>
@@ -94,8 +82,14 @@ tr { border-bottom:1px solid rgba(0,0,0,0.2); }
 <table>
 <thead>
 <tr>
-<th>Código</th><th>Nombre</th><th>Ubicación</th>
-<th>Stock</th><th>Min</th><th>Max</th><th>Crítico</th>
+<th>Código</th>
+<th>Nombre</th>
+<th>Ubicación</th>
+<th>Almacén</th>
+<th>Stock</th>
+<th>Min</th>
+<th>Max</th>
+<th>Crítico</th>
 </tr>
 </thead>
 <tbody id="tabla"></tbody>
@@ -104,7 +98,7 @@ tr { border-bottom:1px solid rgba(0,0,0,0.2); }
 </div>
 
 <script>
-const API_URL="https://script.google.com/macros/s/AKfycbxyURi4bcmWwsaZ4vdXUUVnr_Xu7y9BRG75tITfdwh-zgSIFpvC2lyKJLTT3XTFNS5XZA/exec?v=200";
+const API_URL="https://script.google.com/macros/s/AKfycbxyURi4bcmWwsaZ4vdXUUVnr_Xu7y9BRG75tITfdwh-zgSIFpvC2lyKJLTT3XTFNS5XZA/exec?v=300";
 
 let sesion = JSON.parse(localStorage.getItem("sesion"));
 if (!sesion) location="login.html";
@@ -118,21 +112,36 @@ window.onload=async()=>{
 };
 
 function render(){
-  let f=buscar.value.toLowerCase();
 
-  let rows=DATA.recambios
-  .filter(r=>r.activo==="SI")
-  .filter(r=>r.nombre.toLowerCase().includes(f) || r.codigo.includes(f))
-  .map(r=>{
+  let filtro = buscar.value.toLowerCase();
+
+  let rows = DATA.recambios
+  .filter(r => r.activo === "SI")
+
+  // 🔐 FILTRO POR ALMACÉN (CLAVE)
+  .filter(r => {
+    if (sesion.almacen === "Todos") return true;
+    return r.almacen === sesion.almacen;
+  })
+
+  // 🔎 BUSCADOR
+  .filter(r =>
+    r.nombre.toLowerCase().includes(filtro) ||
+    r.codigo.includes(filtro)
+  )
+
+  .map(r => {
+
     let clase="";
-    if(r.stock<r.min) clase="bajo";
-    else if(r.stock>r.max) clase="alto";
-    else if(r.critico==="SI") clase="critico";
+    if (Number(r.stock) < Number(r.min)) clase="bajo";
+    else if (Number(r.stock) > Number(r.max)) clase="alto";
+    else if (r.critico === "SI") clase="critico";
 
     return `<tr class="${clase}">
       <td>${r.codigo}</td>
       <td class="nombre">${r.nombre}</td>
-      <td>${r["Ubicación"]||""}</td>
+      <td>${r["Ubicación"] || ""}</td>
+      <td>${r.almacen || ""}</td>
       <td>${r.stock}</td>
       <td>${r.min}</td>
       <td>${r.max}</td>
@@ -140,10 +149,10 @@ function render(){
     </tr>`;
   }).join("");
 
-  tabla.innerHTML=rows;
+  tabla.innerHTML = rows;
 }
 
-buscar.oninput=render;
+buscar.oninput = render;
 </script>
 
 </body>
