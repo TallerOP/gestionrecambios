@@ -6,6 +6,8 @@
 
 <meta name="viewport" content="width=device-width, initial-scale=1">
 
+<script src="https://unpkg.com/html5-qrcode"></script>
+
 <style>
 body {
   font-family: Arial;
@@ -21,7 +23,7 @@ body::before {
   height:100%;
   background:url("op.png") center no-repeat;
   background-size:60%;
-  opacity:0.1;
+  opacity:0.5;
   z-index:-1;
 }
 
@@ -42,17 +44,28 @@ input, button {
   box-sizing:border-box;
 }
 
-button {
-  background:#0E3471;
-  color:white;
-  border:none;
-  border-radius:8px;
-  cursor:pointer;
+/* BOTONES PRINCIPALES */
+.botones {
+  display:flex;
+  gap:5px;
 }
 
-button:hover { opacity:0.9; }
+.botones button {
+  width:50%;
+  font-weight:bold;
+}
 
-/* BOTONES ABAJO */
+.entrada {
+  background:green;
+  color:white;
+}
+
+.salida {
+  background:red;
+  color:white;
+}
+
+/* NAV */
 .nav {
   display:flex;
   gap:5px;
@@ -61,6 +74,25 @@ button:hover { opacity:0.9; }
 
 .nav button {
   flex:1;
+  background:#0E3471;
+  color:white;
+}
+
+/* SCANNER */
+#reader {
+  width:100%;
+  display:none;
+  margin-top:10px;
+}
+
+/* LOGOUT */
+.logout {
+  margin-top:20px;
+}
+
+.logout button {
+  background:red;
+  color:white;
 }
 </style>
 </head>
@@ -76,33 +108,49 @@ button:hover { opacity:0.9; }
 
 <h3>📦 Movimiento de recambios</h3>
 
+<button onclick="toggleScanner()">📷 Escanear código</button>
+<div id="reader"></div>
+
 <input id="codigo" placeholder="Código">
 <input id="nombre" placeholder="Nombre" disabled>
 <input id="cantidad" type="number" min="1" placeholder="Cantidad">
 <input id="ot" placeholder="OT">
 
-<button onclick="registrar('entrada')">Entrada</button>
-<button onclick="registrar('salida')">Salida</button>
+<div class="botones">
+  <button class="entrada" onclick="registrar('entrada')">Añadir material</button>
+  <button class="salida" onclick="registrar('salida')">Sacar material</button>
+</div>
 
 <div class="nav">
   <button onclick="irAlmacen()">Almacén</button>
   <button onclick="irHistorico()">Histórico</button>
-  <button onclick="logout()">Salir</button>
+  <button id="btnDashboard" style="display:none;" onclick="irDashboard()">Estadísticas</button>
+</div>
+
+<div class="logout">
+  <button onclick="logout()">Cerrar sesión</button>
 </div>
 
 </div>
 
 <script>
-const API_URL = "https://script.google.com/macros/s/AKfycbxyURi4bcmWwsaZ4vdXUUVnr_Xu7y9BRG75tITfdwh-zgSIFpvC2lyKJLTT3XTFNS5XZA/exec?v=100";
+const API_URL = "https://script.google.com/macros/s/AKfycbxyURi4bcmWwsaZ4vdXUUVnr_Xu7y9BRG75tITfdwh-zgSIFpvC2lyKJLTT3XTFNS5XZA/exec?v=110";
 
-// 🔐 CONTROL SESIÓN
+// SESIÓN
 let sesion = JSON.parse(localStorage.getItem("sesion"));
 
-if (!sesion) {
-  location="login.html";
+if (!sesion) location="login.html";
+
+// MOSTRAR DASHBOARD SI PROCEDE
+if (["Alberto","Jose Luis"].includes(sesion.usuario)) {
+  document.addEventListener("DOMContentLoaded",()=>{
+    document.getElementById("btnDashboard").style.display="block";
+  });
 }
 
 let DATA = {};
+let scanner = null;
+let scannerActivo = false;
 
 // INIT
 window.onload = async ()=>{
@@ -114,9 +162,7 @@ async function cargarDatos(){
 
   let cache = localStorage.getItem("data_cache");
 
-  if (cache) {
-    DATA = JSON.parse(cache);
-  }
+  if (cache) DATA = JSON.parse(cache);
 
   try {
     const res = await fetch(API_URL);
@@ -125,26 +171,59 @@ async function cargarDatos(){
     DATA = json;
     localStorage.setItem("data_cache", JSON.stringify(DATA));
 
-  } catch(e) {
-    console.log("Offline");
+  } catch(e) {}
+}
+
+// SCANNER TOGGLE
+function toggleScanner(){
+
+  if (!scannerActivo) {
+
+    document.getElementById("reader").style.display="block";
+
+    scanner = new Html5Qrcode("reader");
+
+    scanner.start(
+      { facingMode: "environment" },
+      { fps: 10 },
+      (txt)=>{
+        codigo.value = txt;
+        buscarNombre();
+        detenerScanner();
+      }
+    );
+
+    scannerActivo = true;
+
+  } else {
+    detenerScanner();
   }
 }
 
-// AUTOCOMPLETAR NOMBRE
-codigo.addEventListener("input", ()=>{
+function detenerScanner(){
+  if (scanner) {
+    scanner.stop();
+    scanner.clear();
+  }
+  document.getElementById("reader").style.display="none";
+  scannerActivo = false;
+}
 
+// AUTOCOMPLETAR
+codigo.addEventListener("input", buscarNombre);
+
+function buscarNombre(){
   let r = DATA.recambios.find(x =>
     x.codigo == codigo.value &&
     x.activo === "SI"
   );
 
   nombre.value = r ? r.nombre : "";
-});
+}
 
 // REGISTRAR
 function registrar(tipo){
 
-  let sesion = JSON.parse(localStorage.getItem("sesion"));
   let cant = Number(cantidad.value);
 
   if (!cant || cant <= 0)
@@ -154,14 +233,11 @@ function registrar(tipo){
 
   if (!r) return alert("Código no existe");
 
-  // 🔐 CONTROL ALMACÉN
-  if (sesion.almacen !== "TODOS" && r.almacen !== sesion.almacen) {
-    return alert("No tienes acceso a este almacén");
-  }
+  if (sesion.almacen !== "TODOS" && r.almacen !== sesion.almacen)
+    return alert("Sin acceso a este almacén");
 
-  if (tipo==="salida" && cant > Number(r.stock)) {
+  if (tipo==="salida" && cant > Number(r.stock))
     return alert("Stock insuficiente");
-  }
 
   fetch(API_URL,{
     method:"POST",
@@ -174,7 +250,7 @@ function registrar(tipo){
     })
   });
 
-  // LIMPIEZA
+  // LIMPIAR
   codigo.value="";
   nombre.value="";
   cantidad.value="";
@@ -184,13 +260,13 @@ function registrar(tipo){
 // NAV
 function irAlmacen(){ location="almacen.html"; }
 function irHistorico(){ location="historico.html"; }
+function irDashboard(){ location="direccion.html"; }
 
 // LOGOUT
 function logout(){
   localStorage.removeItem("sesion");
   location="login.html";
 }
-
 </script>
 
 </body>
