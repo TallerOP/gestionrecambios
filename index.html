@@ -5,6 +5,9 @@
 <title>Gestión Recambios</title>
 <meta name="viewport" content="width=device-width, initial-scale=1">
 
+<!-- LIBRERÍA ESCÁNER -->
+<script src="https://cdnjs.cloudflare.com/ajax/libs/quagga/0.12.1/quagga.min.js"></script>
+
 <style>
 body {
   font-family: Arial;
@@ -32,12 +35,8 @@ body::before {
   box-shadow:0 2px 8px rgba(0,0,0,0.1);
 }
 
-/* CONTENEDOR */
-.container {
-  padding:15px;
-}
+.container { padding:15px; }
 
-/* INPUTS */
 input {
   width:100%;
   padding:12px;
@@ -47,7 +46,6 @@ input {
   box-sizing:border-box;
 }
 
-/* BOTONES */
 button {
   padding:14px;
   border:none;
@@ -57,60 +55,31 @@ button {
   box-shadow:0 4px 8px rgba(0,0,0,0.2);
 }
 
-button:hover {
-  opacity:0.9;
-}
+button:hover { opacity:0.9; }
 
-/* FILAS */
-.row {
-  display:flex;
-}
+.row { display:flex; }
 
-/* BOTONES ACCIÓN */
-.btnEntrada {
-  width:50%;
-  background:green;
-  color:white;
-}
+.btnEntrada { width:50%; background:green; color:white; }
+.btnSalida { width:50%; background:red; color:white; }
 
-.btnSalida {
-  width:50%;
-  background:red;
-  color:white;
-}
+.nav { display:flex; margin-top:10px; }
+.nav button { width:50%; background:#0E3471; color:white; }
 
-/* NAVEGACIÓN */
-.nav {
-  display:flex;
-  margin-top:10px;
-}
+.stats { width:100%; background:#0E3471; color:white; margin-top:10px; }
 
-.nav button {
-  width:50%;
-  background:#0E3471;
-  color:white;
-}
-
-/* ESTADISTICAS */
-.stats {
-  width:100%;
-  background:#0E3471;
-  color:white;
-  margin-top:10px;
-}
-
-/* LOGOUT */
-.logout {
-  width:100%;
-  background:#333;
-  color:white;
-  margin-top:20px;
-}
+.logout { width:100%; background:#333; color:white; margin-top:20px; }
 
 /* SCANNER */
 #scannerBox {
   display:none;
   margin-top:10px;
+}
+
+#camera {
+  width:100%;
+  height:250px;
+  border-radius:12px;
+  overflow:hidden;
 }
 </style>
 </head>
@@ -124,12 +93,10 @@ button:hover {
 
 <div class="container">
 
-<!-- BOTÓN SCANNER -->
 <button onclick="toggleScanner()">📷 Escanear código</button>
 
-<!-- SCANNER -->
 <div id="scannerBox">
-  <input id="codigo" placeholder="Escanear código" oninput="controlScan(this.value)">
+  <div id="camera"></div>
 </div>
 
 <input id="nombre" placeholder="Nombre" readonly>
@@ -141,13 +108,11 @@ button:hover {
   <button class="btnSalida" onclick="registrar('salida')">Sacar material</button>
 </div>
 
-<!-- NAVEGACIÓN -->
 <div class="nav">
   <button onclick="go('almacen.html')">Almacén</button>
   <button onclick="go('historico.html')">Histórico</button>
 </div>
 
-<!-- ESTADISTICAS -->
 <button id="btnStats" class="stats" onclick="go('direccion.html')" style="display:none">
   📊 Estadísticas
 </button>
@@ -161,13 +126,14 @@ const API_URL = "https://script.google.com/macros/s/AKfycbxyURi4bcmWwsaZ4vdXUUVn
 
 let DATA = [];
 let RECAMBIO = null;
-let scanTimer = null;
+let scanning = false;
+let lastScanTime = 0;
 
 // SESIÓN
 let sesion = JSON.parse(localStorage.getItem("sesion"));
 if(!sesion) location.href="login.html";
 
-// MOSTRAR BOTÓN ESTADÍSTICAS
+// BOTÓN ESTADÍSTICAS
 if(["alberto","jose luis"].includes(sesion.usuario.toLowerCase())){
   document.getElementById("btnStats").style.display="block";
 }
@@ -181,16 +147,64 @@ window.onload = async () => {
 
 // TOGGLE SCANNER
 function toggleScanner(){
+
   let box = document.getElementById("scannerBox");
-  box.style.display = box.style.display === "none" ? "block" : "none";
+
+  if(box.style.display === "none"){
+    box.style.display = "block";
+    iniciarScanner();
+  } else {
+    box.style.display = "none";
+    detenerScanner();
+  }
 }
 
-// CONTROL ESCANEO (1s)
-function controlScan(val){
-  clearTimeout(scanTimer);
-  scanTimer = setTimeout(()=>{
-    buscarRecambio(val);
-  },1000);
+// INICIAR SCANNER
+function iniciarScanner(){
+
+  if(scanning) return;
+
+  Quagga.init({
+    inputStream: {
+      type: "LiveStream",
+      target: document.querySelector('#camera'),
+      constraints: {
+        facingMode: "environment"
+      }
+    },
+    decoder: {
+      readers: ["code_128_reader","ean_reader","ean_8_reader"]
+    }
+  }, function(err){
+    if(err){
+      console.error(err);
+      return;
+    }
+    Quagga.start();
+    scanning = true;
+  });
+
+  Quagga.onDetected(data => {
+
+    let now = Date.now();
+
+    // 🔥 evitar lecturas rápidas
+    if(now - lastScanTime < 1000) return;
+
+    lastScanTime = now;
+
+    let codigo = data.codeResult.code;
+
+    buscarRecambio(codigo);
+  });
+}
+
+// DETENER
+function detenerScanner(){
+  if(scanning){
+    Quagga.stop();
+    scanning = false;
+  }
 }
 
 // BUSCAR
@@ -201,7 +215,6 @@ function buscarRecambio(codigo){
   if(!RECAMBIO){
     sonidoError();
     vibrar();
-    alert("Código no existe");
     return;
   }
 
@@ -270,20 +283,18 @@ async function registrar(tipo){
 
   }catch(e){
     alert("Error al guardar");
-    console.error(e);
   }
 }
 
 // LIMPIAR
 function limpiar(){
-  codigo.value="";
   nombre.value="";
   cantidad.value="";
   ot.value="";
   RECAMBIO=null;
 }
 
-// SONIDOS
+// SONIDO
 function sonidoOK(){ new Audio("ok.mp3").play(); }
 function sonidoError(){ new Audio("error.mp3").play(); }
 
