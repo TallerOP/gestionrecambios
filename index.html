@@ -5,7 +5,6 @@
 <title>Gestión Recambios</title>
 <meta name="viewport" content="width=device-width, initial-scale=1">
 
-<!-- LIBRERÍA ESCÁNER -->
 <script src="https://cdnjs.cloudflare.com/ajax/libs/quagga/0.12.1/quagga.min.js"></script>
 
 <style>
@@ -37,6 +36,7 @@ body::before {
 
 .container { padding:15px; }
 
+/* INPUTS */
 input {
   width:100%;
   padding:12px;
@@ -46,6 +46,7 @@ input {
   box-sizing:border-box;
 }
 
+/* BOTONES */
 button {
   padding:14px;
   border:none;
@@ -57,17 +58,31 @@ button {
 
 button:hover { opacity:0.9; }
 
+/* ACCIONES */
 .row { display:flex; }
 
 .btnEntrada { width:50%; background:green; color:white; }
 .btnSalida { width:50%; background:red; color:white; }
 
-.nav { display:flex; margin-top:10px; }
-.nav button { width:50%; background:#0E3471; color:white; }
+/* NAV 3 BOTONES */
+.nav {
+  display:flex;
+  margin-top:10px;
+}
 
-.stats { width:100%; background:#0E3471; color:white; margin-top:10px; }
+.nav button {
+  width:33.33%;
+  background:#0E3471;
+  color:white;
+}
 
-.logout { width:100%; background:#333; color:white; margin-top:20px; }
+/* LOGOUT */
+.logout {
+  width:100%;
+  background:#333;
+  color:white;
+  margin-top:20px;
+}
 
 /* SCANNER */
 #scannerBox {
@@ -77,7 +92,7 @@ button:hover { opacity:0.9; }
 
 #camera {
   width:100%;
-  height:250px;
+  height:260px;
   border-radius:12px;
   overflow:hidden;
 }
@@ -99,6 +114,7 @@ button:hover { opacity:0.9; }
   <div id="camera"></div>
 </div>
 
+<input id="codigo" placeholder="Código" readonly>
 <input id="nombre" placeholder="Nombre" readonly>
 <input id="cantidad" type="number" min="1" step="1" placeholder="Cantidad">
 <input id="ot" placeholder="OT">
@@ -111,11 +127,8 @@ button:hover { opacity:0.9; }
 <div class="nav">
   <button onclick="go('almacen.html')">Almacén</button>
   <button onclick="go('historico.html')">Histórico</button>
+  <button id="btnStats" onclick="go('direccion.html')" style="display:none">Estadísticas</button>
 </div>
-
-<button id="btnStats" class="stats" onclick="go('direccion.html')" style="display:none">
-  📊 Estadísticas
-</button>
 
 <button class="logout" onclick="logout()">Cerrar sesión</button>
 
@@ -147,7 +160,6 @@ window.onload = async () => {
 
 // TOGGLE SCANNER
 function toggleScanner(){
-
   let box = document.getElementById("scannerBox");
 
   if(box.style.display === "none"){
@@ -168,18 +180,13 @@ function iniciarScanner(){
     inputStream: {
       type: "LiveStream",
       target: document.querySelector('#camera'),
-      constraints: {
-        facingMode: "environment"
-      }
+      constraints: { facingMode: "environment" }
     },
     decoder: {
       readers: ["code_128_reader","ean_reader","ean_8_reader"]
     }
   }, function(err){
-    if(err){
-      console.error(err);
-      return;
-    }
+    if(err) return console.error(err);
     Quagga.start();
     scanning = true;
   });
@@ -188,14 +195,14 @@ function iniciarScanner(){
 
     let now = Date.now();
 
-    // 🔥 evitar lecturas rápidas
-    if(now - lastScanTime < 1000) return;
+    // 🔥 2 SEGUNDOS
+    if(now - lastScanTime < 2000) return;
 
     lastScanTime = now;
 
-    let codigo = data.codeResult.code;
+    let codigoLeido = data.codeResult.code;
 
-    buscarRecambio(codigo);
+    buscarRecambio(codigoLeido);
   });
 }
 
@@ -208,16 +215,18 @@ function detenerScanner(){
 }
 
 // BUSCAR
-function buscarRecambio(codigo){
+function buscarRecambio(codigoLeido){
 
-  RECAMBIO = DATA.find(r => String(r.codigo) === String(codigo));
+  RECAMBIO = DATA.find(r => String(r.codigo) === String(codigoLeido));
 
   if(!RECAMBIO){
     sonidoError();
     vibrar();
+    alert("Código no existe");
     return;
   }
 
+  codigo.value = RECAMBIO.codigo;
   nombre.value = RECAMBIO.nombre || "";
 
   sonidoOK();
@@ -279,6 +288,9 @@ async function registrar(tipo){
 
     sonidoOK();
     vibrar();
+
+    alert("Movimiento registrado correctamente");
+
     limpiar();
 
   }catch(e){
@@ -288,13 +300,14 @@ async function registrar(tipo){
 
 // LIMPIAR
 function limpiar(){
+  codigo.value="";
   nombre.value="";
   cantidad.value="";
   ot.value="";
   RECAMBIO=null;
 }
 
-// SONIDO
+// SONIDOS
 function sonidoOK(){ new Audio("ok.mp3").play(); }
 function sonidoError(){ new Audio("error.mp3").play(); }
 
