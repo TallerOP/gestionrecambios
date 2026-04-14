@@ -6,8 +6,13 @@
 <meta name="viewport" content="width=device-width, initial-scale=1">
 
 <style>
-body { font-family: Arial; margin:0; background:white; }
+body {
+  font-family: Arial;
+  margin:0;
+  background:white;
+}
 
+/* FONDO */
 body::before {
   content:"";
   position:fixed;
@@ -19,46 +24,98 @@ body::before {
   z-index:-1;
 }
 
+/* HEADER */
 .header {
+  position: sticky;
+  top:0;
+  z-index:1000;
   text-align:center;
   padding:15px;
-  background:#eef5ff;
+  background:rgba(255,255,255,0.95);
+  box-shadow:0 2px 8px rgba(0,0,0,0.1);
 }
 
-.container { padding:10px; }
+.header h2 {
+  margin:5px 0 0 0;
+  font-size:18px;
+}
 
+/* CONTENEDOR */
+.container {
+  padding:12px;
+}
+
+/* BOTONES */
 button {
   width:100%;
   padding:12px;
   margin:6px 0;
-  border-radius:10px;
   border:none;
+  border-radius:10px;
   background:#0E3471;
   color:white;
   cursor:pointer;
   box-shadow:0 4px 0 rgba(0,0,0,0.2);
+  transition:0.2s;
 }
 
 button:hover { filter:brightness(1.1); }
 
-.nav { display:flex; gap:6px; }
+button:active {
+  transform:translateY(2px);
+  box-shadow:0 2px 0 rgba(0,0,0,0.2);
+}
+
+/* NAV */
+.nav {
+  display:flex;
+  gap:6px;
+}
+
 .nav button { flex:1; }
 
+/* KPI GRID */
 .kpis {
   display:grid;
   grid-template-columns:1fr 1fr;
   gap:10px;
+  margin-top:10px;
 }
 
+/* TARJETAS */
 .card {
-  padding:15px;
-  border-radius:10px;
+  padding:20px;
+  border-radius:12px;
   text-align:center;
+  font-size:14px;
+  cursor:pointer;
+  box-shadow:0 4px 10px rgba(0,0,0,0.1);
+  transition:0.2s;
 }
 
-.rojo { background:#ffb3b3; }
+.card:hover {
+  transform:scale(1.03);
+}
+
+/* COLORES */
+.rojo { background:#ff4d4d; color:white; }
 .azul { background:#0E3471; color:white; }
 .amarillo { background:#fff3b0; }
+.verde { background:#d4edda; }
+
+/* LISTA ALERTAS */
+.lista {
+  margin-top:15px;
+  background:#f9f9f9;
+  border-radius:10px;
+  padding:10px;
+}
+
+.item {
+  padding:8px;
+  border-bottom:1px solid rgba(0,0,0,0.2);
+  font-size:13px;
+}
 
 </style>
 </head>
@@ -67,41 +124,88 @@ button:hover { filter:brightness(1.1); }
 
 <div class="header">
   <img src="op.png" height="40">
-  <h3>Gestión de recambios OP Mobility Pedrola</h3>
+  <h2>Gestión de recambios OP Mobility Pedrola</h2>
 </div>
 
 <div class="container">
 
+<!-- NAV -->
 <div class="nav">
-  <button onclick="location='index.html'">Inicio</button>
-  <button onclick="location='almacen.html'">Almacén</button>
-  <button onclick="location='historico.html'">Histórico</button>
+  <button onclick="irInicio()">Inicio</button>
+  <button onclick="irAlmacen()">Almacén</button>
+  <button onclick="irHistorico()">Histórico</button>
 </div>
 
+<!-- KPIs -->
 <div class="kpis" id="kpis"></div>
+
+<!-- ALERTAS -->
+<div class="lista" id="alertas"></div>
 
 </div>
 
 <script>
-const API_URL="https://script.google.com/macros/s/AKfycbxyURi4bcmWwsaZ4vdXUUVnr_Xu7y9BRG75tITfdwh-zgSIFpvC2lyKJLTT3XTFNS5XZA/exec?v=200";
+const API_URL="https://script.google.com/macros/s/AKfycbxyURi4bcmWwsaZ4vdXUUVnr_Xu7y9BRG75tITfdwh-zgSIFpvC2lyKJLTT3XTFNS5XZA/exec?v=60";
 
-let sesion=JSON.parse(localStorage.getItem("sesion"));
-if(!["Alberto","Jose Luis"].includes(sesion?.usuario)) location="index.html";
+// 🔐 CONTROL ACCESO
+let sesion = JSON.parse(localStorage.getItem("sesion"));
 
-window.onload=async()=>{
-  const res=await fetch(API_URL);
-  const DATA=await res.json();
+if(!["Alberto","Jose Luis"].includes(sesion?.usuario)){
+  window.location.href="index.html";
+}
 
-  let bajo=DATA.recambios.filter(r=>r.stock<r.min).length;
-  let alto=DATA.recambios.filter(r=>r.stock>r.max).length;
-  let activos=DATA.recambios.filter(r=>r.activo==="SI").length;
+window.onload = async ()=>{
 
-  kpis.innerHTML=`
-    <div class="card rojo">Bajo mínimo<br>${bajo}</div>
-    <div class="card azul">Sobre stock<br>${alto}</div>
-    <div class="card amarillo">Activos<br>${activos}</div>
+  const res = await fetch(API_URL);
+  const json = await res.json();
+
+  const rec = (json.recambios||[]).filter(r=>String(r.activo).toUpperCase()==="SI");
+
+  let bajo = rec.filter(r => Number(r.stock) < Number(r.min));
+  let alto = rec.filter(r => Number(r.stock) > Number(r.max));
+  let criticos = rec.filter(r => String(r.critico).toUpperCase()==="SI");
+
+  // KPIs
+  kpis.innerHTML = `
+    <div class="card rojo" onclick="goFiltro('bajo')">
+      Bajo mínimo<br><b>${bajo.length}</b>
+    </div>
+
+    <div class="card azul" onclick="goFiltro('alto')">
+      Sobre stock<br><b>${alto.length}</b>
+    </div>
+
+    <div class="card amarillo">
+      Críticos<br><b>${criticos.length}</b>
+    </div>
+
+    <div class="card verde">
+      Activos<br><b>${rec.length}</b>
+    </div>
+  `;
+
+  // ALERTAS TOP
+  alertas.innerHTML = `
+    <b>⚠️ Recambios críticos / bajo mínimo:</b><br><br>
+    ${
+      bajo.slice(0,5).map(r=>
+        `<div class="item">${r.codigo} - ${r.nombre} (${r.stock})</div>`
+      ).join("")
+    }
   `;
 };
+
+// 🔥 REDIRECCIÓN CON FILTRO
+function goFiltro(tipo){
+  localStorage.setItem("filtroEstado", tipo);
+  window.location.href="almacen.html";
+}
+
+// NAV
+function irInicio(){ window.location.href="index.html"; }
+function irAlmacen(){ window.location.href="almacen.html"; }
+function irHistorico(){ window.location.href="historico.html"; }
+
 </script>
 
 </body>
