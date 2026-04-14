@@ -37,14 +37,6 @@ body::before {
   padding:15px;
 }
 
-/* BLOQUE ESCÁNER */
-.scanner {
-  background:#e6f0ff;
-  padding:15px;
-  border-radius:12px;
-  margin-bottom:15px;
-}
-
 /* INPUTS */
 input {
   width:100%;
@@ -69,11 +61,12 @@ button:hover {
   opacity:0.9;
 }
 
-/* BOTONES PRINCIPALES */
+/* FILAS */
 .row {
   display:flex;
 }
 
+/* BOTONES ACCIÓN */
 .btnEntrada {
   width:50%;
   background:green;
@@ -98,7 +91,15 @@ button:hover {
   color:white;
 }
 
-/* CERRAR SESIÓN */
+/* ESTADISTICAS */
+.stats {
+  width:100%;
+  background:#0E3471;
+  color:white;
+  margin-top:10px;
+}
+
+/* LOGOUT */
 .logout {
   width:100%;
   background:#333;
@@ -106,9 +107,10 @@ button:hover {
   margin-top:20px;
 }
 
-/* CURSOR */
-button:hover {
-  cursor:pointer;
+/* SCANNER */
+#scannerBox {
+  display:none;
+  margin-top:10px;
 }
 </style>
 </head>
@@ -122,10 +124,14 @@ button:hover {
 
 <div class="container">
 
-<!-- ESCÁNER -->
-<div class="scanner">
+<!-- BOTÓN SCANNER -->
+<button onclick="toggleScanner()">📷 Escanear código</button>
 
-<input id="codigo" placeholder="Escanear código" oninput="controlScan(this.value)">
+<!-- SCANNER -->
+<div id="scannerBox">
+  <input id="codigo" placeholder="Escanear código" oninput="controlScan(this.value)">
+</div>
+
 <input id="nombre" placeholder="Nombre" readonly>
 <input id="cantidad" type="number" min="1" step="1" placeholder="Cantidad">
 <input id="ot" placeholder="OT">
@@ -135,13 +141,16 @@ button:hover {
   <button class="btnSalida" onclick="registrar('salida')">Sacar material</button>
 </div>
 
-</div>
-
 <!-- NAVEGACIÓN -->
 <div class="nav">
   <button onclick="go('almacen.html')">Almacén</button>
   <button onclick="go('historico.html')">Histórico</button>
 </div>
+
+<!-- ESTADISTICAS -->
+<button id="btnStats" class="stats" onclick="go('direccion.html')" style="display:none">
+  📊 Estadísticas
+</button>
 
 <button class="logout" onclick="logout()">Cerrar sesión</button>
 
@@ -158,6 +167,11 @@ let scanTimer = null;
 let sesion = JSON.parse(localStorage.getItem("sesion"));
 if(!sesion) location.href="login.html";
 
+// MOSTRAR BOTÓN ESTADÍSTICAS
+if(["alberto","jose luis"].includes(sesion.usuario.toLowerCase())){
+  document.getElementById("btnStats").style.display="block";
+}
+
 // CARGA
 window.onload = async () => {
   let res = await fetch(API_URL);
@@ -165,10 +179,15 @@ window.onload = async () => {
   DATA = json.recambios || [];
 };
 
+// TOGGLE SCANNER
+function toggleScanner(){
+  let box = document.getElementById("scannerBox");
+  box.style.display = box.style.display === "none" ? "block" : "none";
+}
+
 // CONTROL ESCANEO (1s)
 function controlScan(val){
   clearTimeout(scanTimer);
-
   scanTimer = setTimeout(()=>{
     buscarRecambio(val);
   },1000);
@@ -195,13 +214,9 @@ function buscarRecambio(codigo){
 // VALIDACIÓN
 function getCantidad(){
 
-  let val = cantidad.value;
+  let num = Number(cantidad.value);
 
-  if(!val) return null;
-
-  let num = Number(val);
-
-  if(isNaN(num) || num <= 0) return null;
+  if(!num || num <= 0) return null;
 
   if(!Number.isInteger(num)){
     alert("Solo números enteros");
@@ -237,14 +252,13 @@ async function registrar(tipo){
 
   let payload = {
     tipo: tipo,
-    codigo: RECAMBBIO.codigo,
+    codigo: RECAMBIO.codigo,
     cantidad: cant,
     usuario: sesion.usuario,
     orden: ot.value || ""
   };
 
   try{
-
     await fetch(API_URL, {
       method:"POST",
       body: JSON.stringify(payload)
@@ -252,7 +266,6 @@ async function registrar(tipo){
 
     sonidoOK();
     vibrar();
-
     limpiar();
 
   }catch(e){
@@ -281,6 +294,7 @@ function vibrar(){
 
 // NAV
 function go(p){ window.location.href=p; }
+
 function logout(){
   localStorage.removeItem("sesion");
   location.href="login.html";
