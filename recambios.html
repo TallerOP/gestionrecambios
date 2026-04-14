@@ -1,0 +1,162 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="UTF-8">
+<title>Recambios</title>
+<meta name="viewport" content="width=device-width, initial-scale=1">
+
+<style>
+body { font-family: Arial; margin:0; }
+
+body::before {
+  content:"";
+  position:fixed;
+  width:100%;
+  height:100%;
+  background:url("op.png") center no-repeat;
+  background-size:60%;
+  opacity:0.3;
+  z-index:-1;
+}
+
+.header { text-align:center; padding:15px; background:white; }
+
+.container { padding:10px; }
+
+.kpis {
+  display:grid;
+  grid-template-columns:1fr 1fr;
+  gap:10px;
+}
+
+.card {
+  padding:15px;
+  border-radius:10px;
+  text-align:center;
+  color:white;
+}
+
+.rojo { background:#ff4d4d; }
+.azul { background:#0E3471; }
+.amarillo { background:#f0c000; color:black; }
+.verde { background:#4caf50; }
+
+table {
+  width:100%;
+  border-collapse:collapse;
+  margin-top:10px;
+}
+
+td, th {
+  padding:8px;
+  border-bottom:1px solid #ccc;
+}
+
+td.nombre { text-align:left; }
+
+button {
+  width:100%;
+  padding:10px;
+  margin-top:10px;
+}
+</style>
+</head>
+
+<body>
+
+<div class="header">
+  <h3>Recambios (sin Consumibles)</h3>
+</div>
+
+<div class="container">
+
+<div class="kpis" id="kpis"></div>
+
+<div id="bajo"></div>
+<div id="alto"></div>
+
+<h4>Consumo</h4>
+<div id="consumo"></div>
+
+<h4>Histórico</h4>
+<table>
+<tbody id="hist"></tbody>
+</table>
+
+<button onclick="volver()">⬅ Volver</button>
+
+</div>
+
+<script>
+const API="https://script.google.com/macros/s/AKfycbxyURi4bcmWwsaZ4vdXUUVnr_Xu7y9BRG75tITfdwh-zgSIFpvC2lyKJLTT3XTFNS5XZA/exec?v=300";
+
+let REC=[], MOV=[];
+
+function n(v){ return Number(v)||0; }
+
+function esConsumible(r){
+  return String(r.almacen||"").trim().toLowerCase()==="consumibles";
+}
+
+window.onload=async()=>{
+  let r=await fetch(API);
+  let j=await r.json();
+
+  REC=(j.recambios||[]).filter(r=>!esConsumible(r));
+  MOV=j.movimientos||[];
+
+  render();
+};
+
+function render(){
+
+  let bajo=REC.filter(r=>n(r.stock)<n(r.min));
+  let alto=REC.filter(r=>n(r.stock)>n(r.max));
+  let crit=REC.filter(r=>String(r.critico).toUpperCase()=="SI");
+
+  kpis.innerHTML=`
+    <div class="card rojo">Bajo mínimo<br>${bajo.length}</div>
+    <div class="card azul">Sobre máximo<br>${alto.length}</div>
+    <div class="card amarillo">Críticos<br>${crit.length}</div>
+    <div class="card verde">Total<br>${REC.length}</div>
+  `;
+
+  renderTabla("bajo", bajo, "Bajo mínimo");
+  renderTabla("alto", alto, "Sobre máximo");
+
+  let uso={};
+  MOV.filter(m=>m.tipo=="salida" && REC.find(r=>r.codigo==m.codigo))
+  .forEach(m=>{
+    uso[m.codigo]=(uso[m.codigo]||0)+n(m.cantidad);
+  });
+
+  consumo.innerHTML=Object.entries(uso)
+    .map(x=>x[0]+" → "+x[1]).join("<br>");
+
+  hist.innerHTML=MOV
+    .filter(m=>REC.find(r=>r.codigo==m.codigo))
+    .slice(-20)
+    .map(m=>`<tr><td>${m.fecha}</td><td>${m.codigo}</td><td>${m.tipo}</td><td>${m.cantidad}</td></tr>`)
+    .join("");
+}
+
+function renderTabla(id,data,titulo){
+  document.getElementById(id).innerHTML=`
+    <h4>${titulo}</h4>
+    <table>
+      <tr><th>Código</th><th>Nombre</th><th>Stock</th></tr>
+      ${data.map(r=>`
+        <tr>
+          <td>${r.codigo}</td>
+          <td class="nombre">${r.nombre}</td>
+          <td>${r.stock}</td>
+        </tr>`).join("")}
+    </table>
+  `;
+}
+
+function volver(){ location.href="direccion.html"; }
+</script>
+
+</body>
+</html>
