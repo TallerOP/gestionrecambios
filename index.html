@@ -5,8 +5,6 @@
 <title>Gestión Recambios</title>
 <meta name="viewport" content="width=device-width, initial-scale=1">
 
-<script src="https://cdnjs.cloudflare.com/ajax/libs/quagga/0.12.1/quagga.min.js"></script>
-
 <style>
 body {
   font-family: Arial;
@@ -62,6 +60,7 @@ button:hover { opacity:0.9; }
   color:white;
 }
 
+/* FILAS */
 .row {
   display:flex;
   justify-content:space-between;
@@ -103,13 +102,7 @@ button:hover { opacity:0.9; }
 }
 
 #scannerBox.active {
-  max-height:350px;
-}
-
-#camera {
-  width:100%;
-  height:240px;
-  border-radius:12px;
+  max-height:200px;
 }
 </style>
 </head>
@@ -126,8 +119,7 @@ button:hover { opacity:0.9; }
 <button class="btnScan" onclick="toggleScanner()">📷 Escanear código</button>
 
 <div id="scannerBox">
-  <div id="camera"></div>
-  <input id="codigoManual" placeholder="Código manual" onkeypress="manualEnter(event)">
+  <input id="codigoScan" placeholder="Escanea o introduce código" autofocus>
 </div>
 
 <input id="codigo" placeholder="Código" readonly>
@@ -155,14 +147,7 @@ const API_URL = "https://script.google.com/macros/s/AKfycbxyURi4bcmWwsaZ4vdXUUVn
 
 let DATA = [];
 let RECAMBIO = null;
-let scanning = false;
-let lastCode = "";
-let lastScanTime = 0;
-
-// NORMALIZAR
-function normalizar(c){
-  return String(c).trim().replace(/\s/g,"");
-}
+let scanTimer = null;
 
 // SESIÓN
 let sesion = JSON.parse(localStorage.getItem("sesion"));
@@ -185,87 +170,41 @@ function toggleScanner(){
 
   if(!box.classList.contains("active")){
     box.classList.add("active");
-    iniciarScanner();
+    document.getElementById("codigoScan").focus();
   } else {
-    cerrarScanner();
+    box.classList.remove("active");
   }
 }
 
-// SCANNER
-function iniciarScanner(){
+// ESCANEO (2s)
+document.getElementById("codigoScan").addEventListener("input", function(){
 
-  if(scanning) return;
+  clearTimeout(scanTimer);
 
-  Quagga.init({
-    inputStream:{
-      type:"LiveStream",
-      target:document.querySelector('#camera'),
-      constraints:{ facingMode:"environment" }
-    },
-    decoder:{
-      readers:["code_128_reader","ean_reader"]
-    }
-  }, err=>{
-    if(err) return;
-    Quagga.start();
-    scanning=true;
-  });
-
-  Quagga.onDetected(data=>{
-
-    let raw = data.codeResult.code;
-    let code = normalizar(raw);
-    let now = Date.now();
-
-    // filtro calidad
-    if(code.length < 6) return;
-
-    if(code === lastCode && (now - lastScanTime < 2000)) return;
-
-    lastCode = code;
-    lastScanTime = now;
-
-    buscarRecambio(code);
+  scanTimer = setTimeout(()=>{
+    buscarRecambio(this.value);
     cerrarScanner();
-  });
-}
+  },2000);
+});
 
 function cerrarScanner(){
   document.getElementById("scannerBox").classList.remove("active");
-
-  if(scanning){
-    Quagga.stop();
-    scanning=false;
-  }
 }
 
-// MANUAL
-function manualEnter(e){
-  if(e.key==="Enter"){
-    buscarRecambio(normalizar(e.target.value));
-    cerrarScanner();
-  }
-}
+// BUSCAR
+function buscarRecambio(codigoLeido){
 
-// BUSCAR ROBUSTO
-function buscarRecambio(c){
+  let codigo = String(codigoLeido).trim();
 
-  let codigoBuscado = normalizar(c);
-
-  RECAMBIO = DATA.find(r => normalizar(r.codigo) === codigoBuscado);
-
-  // fallback por si viene incompleto
-  if(!RECAMBIO){
-    RECAMBIO = DATA.find(r => normalizar(r.codigo).includes(codigoBuscado));
-  }
+  RECAMBIO = DATA.find(r => String(r.codigo).trim() === codigo);
 
   if(!RECAMBIO){
     alert("Código no existe");
     return;
   }
 
-  codigo.value = RECAMBIO.codigo;
-  nombre.value = RECAMBIO.nombre;
+  document.getElementById("codigo").value = RECAMBIO.codigo;
+  document.getElementById("nombre").value = RECAMBIO.nombre;
 }
 
 // VALIDACIÓN
