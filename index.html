@@ -40,14 +40,38 @@ body::before {
 input, button {
   width:100%;
   padding:12px;
-  margin:5px 0;
+  margin:6px 0;
   box-sizing:border-box;
+  border-radius:10px;
+  border:none;
+  font-size:14px;
+}
+
+/* INPUT */
+input {
+  border:1px solid #ccc;
+}
+
+/* BOTONES BASE */
+button {
+  cursor:pointer; /* 👈 AQUÍ */
+  box-shadow:0 4px 0 rgba(0,0,0,0.2);
+  transition:0.1s;
+}
+
+button:hover {
+  opacity:0.9;
+}
+
+button:active {
+  transform:translateY(2px);
+  box-shadow:0 2px 0 rgba(0,0,0,0.2);
 }
 
 /* BOTONES PRINCIPALES */
 .botones {
   display:flex;
-  gap:5px;
+  gap:6px;
 }
 
 .botones button {
@@ -56,19 +80,19 @@ input, button {
 }
 
 .entrada {
-  background:green;
+  background:#28a745;
   color:white;
 }
 
 .salida {
-  background:red;
+  background:#dc3545;
   color:white;
 }
 
 /* NAV */
 .nav {
   display:flex;
-  gap:5px;
+  gap:6px;
   margin-top:10px;
 }
 
@@ -83,6 +107,8 @@ input, button {
   width:100%;
   display:none;
   margin-top:10px;
+  border-radius:10px;
+  overflow:hidden;
 }
 
 /* LOGOUT */
@@ -91,7 +117,7 @@ input, button {
 }
 
 .logout button {
-  background:red;
+  background:#333;
   color:white;
 }
 </style>
@@ -134,16 +160,15 @@ input, button {
 </div>
 
 <script>
-const API_URL = "https://script.google.com/macros/s/AKfycbxyURi4bcmWwsaZ4vdXUUVnr_Xu7y9BRG75tITfdwh-zgSIFpvC2lyKJLTT3XTFNS5XZA/exec?v=110";
+const API_URL = "https://script.google.com/macros/s/AKfycbxyURi4bcmWwsaZ4vdXUUVnr_Xu7y9BRG75tITfdwh-zgSIFpvC2lyKJLTT3XTFNS5XZA/exec?v=130";
 
 // SESIÓN
 let sesion = JSON.parse(localStorage.getItem("sesion"));
-
 if (!sesion) location="login.html";
 
-// MOSTRAR DASHBOARD SI PROCEDE
+// DASHBOARD
 if (["Alberto","Jose Luis"].includes(sesion.usuario)) {
-  document.addEventListener("DOMContentLoaded",()=>{
+  window.addEventListener("DOMContentLoaded",()=>{
     document.getElementById("btnDashboard").style.display="block";
   });
 }
@@ -159,9 +184,7 @@ window.onload = async ()=>{
 
 // CARGA
 async function cargarDatos(){
-
   let cache = localStorage.getItem("data_cache");
-
   if (cache) DATA = JSON.parse(cache);
 
   try {
@@ -171,45 +194,58 @@ async function cargarDatos(){
     DATA = json;
     localStorage.setItem("data_cache", JSON.stringify(DATA));
 
-  } catch(e) {}
+  } catch(e){}
 }
 
-// SCANNER TOGGLE
-function toggleScanner(){
+// SCANNER
+async function toggleScanner(){
+
+  const reader = document.getElementById("reader");
 
   if (!scannerActivo) {
 
-    document.getElementById("reader").style.display="block";
+    reader.style.display="block";
 
     scanner = new Html5Qrcode("reader");
 
-    scanner.start(
-      { facingMode: "environment" },
-      { fps: 10 },
-      (txt)=>{
-        codigo.value = txt;
-        buscarNombre();
-        detenerScanner();
-      }
-    );
+    try {
+      await scanner.start(
+        { facingMode: "environment" },
+        { fps: 10 },
+        (txt)=>{
+          codigo.value = txt;
+          buscarNombre();
+          detenerScanner();
+        }
+      );
 
-    scannerActivo = true;
+      scannerActivo = true;
+
+    } catch(e){
+      console.log(e);
+    }
 
   } else {
-    detenerScanner();
+    await detenerScanner();
   }
 }
 
-function detenerScanner(){
+async function detenerScanner(){
+
   if (scanner) {
-    scanner.stop();
-    scanner.clear();
+    try {
+      await scanner.stop();
+      await scanner.clear();
+    } catch(e){}
+
+    scanner = null;
   }
+
   document.getElementById("reader").style.display="none";
   scannerActivo = false;
 }
 
-// AUTOCOMPLETAR
+// AUTOCOMPLETE
 codigo.addEventListener("input", buscarNombre);
 
 function buscarNombre(){
