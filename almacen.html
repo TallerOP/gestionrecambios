@@ -8,17 +8,6 @@
 <style>
 body { font-family: Arial; margin:0; background:white; }
 
-body::before {
-  content:"";
-  position:fixed;
-  width:100%;
-  height:100%;
-  background:url("op.png") center no-repeat;
-  background-size:60%;
-  opacity:0.3;
-  z-index:-1;
-}
-
 .header {
   text-align:center;
   padding:15px;
@@ -32,64 +21,38 @@ input, button {
   padding:12px;
   margin:6px 0;
   border-radius:10px;
-  border:none;
-  box-sizing:border-box;
 }
-
-input { border:1px solid #ccc; }
 
 button {
   background:#0E3471;
   color:white;
   cursor:pointer;
-  box-shadow:0 4px 0 rgba(0,0,0,0.2);
 }
 
-button:hover { filter:brightness(1.1); }
-
-/* TABLA */
-table { width:100%; border-collapse:collapse; font-size:13px; }
+table { width:100%; border-collapse:collapse; }
 th, td { padding:8px; text-align:center; }
 td.nombre { text-align:left; }
-tr { border-bottom:1px solid rgba(0,0,0,0.2); }
 
 .bajo { background:#ffb3b3; }
 .alto { background:#0E3471; color:white; }
-.critico { background:#fff3b0; font-weight:bold; }
-
-.nav { display:flex; gap:6px; }
-.nav button { flex:1; }
-
+.critico { background:#fff3b0; }
 </style>
 </head>
 
 <body>
 
 <div class="header">
-  <img src="op.png" height="40">
-  <h3>Gestión de recambios OP Mobility Pedrola</h3>
+  <h3>Gestión de recambios</h3>
 </div>
 
 <div class="container">
 
 <input id="buscar" placeholder="Buscar...">
 
-<div class="nav">
-  <button onclick="location='index.html'">Inicio</button>
-  <button onclick="location='historico.html'">Histórico</button>
-</div>
-
 <table>
 <thead>
 <tr>
-<th>Código</th>
-<th>Nombre</th>
-<th>Ubicación</th>
-<th>Almacén</th>
-<th>Stock</th>
-<th>Min</th>
-<th>Max</th>
-<th>Crítico</th>
+<th>Código</th><th>Nombre</th><th>Stock</th>
 </tr>
 </thead>
 <tbody id="tabla"></tbody>
@@ -98,70 +61,55 @@ tr { border-bottom:1px solid rgba(0,0,0,0.2); }
 </div>
 
 <script>
-const API_URL="https://script.google.com/macros/s/AKfycbxyURi4bcmWwsaZ4vdXUUVnr_Xu7y9BRG75tITfdwh-zgSIFpvC2lyKJLTT3XTFNS5XZA/exec?v=400";
+const API_URL="TU_URL";
 
+// 🔐 SESIÓN
 let sesion = JSON.parse(localStorage.getItem("sesion"));
 if (!sesion) location="login.html";
 
-let DATA={};
+let RECAMBIOS = [];
 
-window.onload=async()=>{
-  const res=await fetch(API_URL);
-  DATA=await res.json();
-  console.log("DATA:", DATA); // 👈 DEBUG
+window.onload = async ()=>{
+
+  const res = await fetch(API_URL);
+  const json = await res.json();
+
+  console.log("JSON COMPLETO:", json);
+
+  // 🔥 DETECCIÓN AUTOMÁTICA
+  if (json.recambios) RECAMBIOS = json.recambios;
+  else if (json.data) RECAMBIOS = json.data;
+  else if (Array.isArray(json)) RECAMBIOS = json;
+  else {
+    alert("Formato de datos desconocido");
+    return;
+  }
+
+  console.log("RECAMBIOS:", RECAMBIOS);
+
   render();
 };
 
-// 🔥 FUNCIÓN SEGURA PARA LEER ALMACÉN
-function getAlmacen(obj){
-  return obj.almacen || obj.Almacen || obj["ALMACEN"] || "";
-}
-
 function render(){
 
-  let filtro = buscar.value.toLowerCase();
+  if (!RECAMBIOS.length){
+    tabla.innerHTML = "<tr><td colspan='3'>NO HAY DATOS</td></tr>";
+    return;
+  }
 
-  let rows = DATA.recambios
-  .filter(r => r.activo === "SI")
+  let f = buscar.value.toLowerCase();
 
-  // 🔐 FILTRO USUARIO (ROBUSTO)
-  .filter(r => {
-    if (sesion.almacen === "Todos") return true;
+  tabla.innerHTML = RECAMBIOS
 
-    let alm = getAlmacen(r);
-    return alm === sesion.almacen;
-  })
+  .filter(r => (r.nombre || "").toLowerCase().includes(f))
 
-  // 🔎 BUSCADOR
-  .filter(r =>
-    (r.nombre || "").toLowerCase().includes(filtro) ||
-    (r.codigo || "").includes(filtro)
-  )
-
-  .map(r => {
-
-    let stock = Number(r.stock)||0;
-    let min = Number(r.min)||0;
-    let max = Number(r.max)||0;
-
-    let clase="";
-    if (stock < min) clase="bajo";
-    else if (stock > max) clase="alto";
-    else if (r.critico === "SI") clase="critico";
-
-    return `<tr class="${clase}">
+  .map(r => `
+    <tr>
       <td>${r.codigo}</td>
       <td class="nombre">${r.nombre}</td>
-      <td>${r["Ubicación"] || ""}</td>
-      <td>${getAlmacen(r)}</td>
-      <td>${stock}</td>
-      <td>${min}</td>
-      <td>${max}</td>
-      <td>${r.critico}</td>
-    </tr>`;
-  }).join("");
-
-  tabla.innerHTML = rows || "<tr><td colspan='8'>Sin datos</td></tr>";
+      <td>${r.stock}</td>
+    </tr>
+  `).join("");
 }
 
 buscar.oninput = render;
