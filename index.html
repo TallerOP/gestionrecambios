@@ -14,7 +14,6 @@ body {
   background:white;
 }
 
-/* FONDO */
 body::before {
   content:"";
   position:fixed;
@@ -26,7 +25,6 @@ body::before {
   z-index:-1;
 }
 
-/* HEADER */
 .header {
   text-align:center;
   padding:15px;
@@ -36,7 +34,6 @@ body::before {
 
 .container { padding:15px; }
 
-/* INPUTS */
 input {
   width:100%;
   padding:12px;
@@ -57,7 +54,6 @@ button {
 
 button:hover { opacity:0.9; }
 
-/* BOTÓN ESCÁNER */
 .btnScan {
   display:block;
   width:30%;
@@ -66,14 +62,12 @@ button:hover { opacity:0.9; }
   color:white;
 }
 
-/* FILAS */
 .row {
   display:flex;
   justify-content:space-between;
   margin-top:8px;
 }
 
-/* 2 BOTONES */
 .btnEntrada, .btnSalida {
   width:49.5%;
   color:white;
@@ -82,7 +76,6 @@ button:hover { opacity:0.9; }
 .btnEntrada { background:green; }
 .btnSalida { background:red; }
 
-/* 3 BOTONES */
 .nav {
   display:flex;
   justify-content:space-between;
@@ -95,7 +88,6 @@ button:hover { opacity:0.9; }
   color:white;
 }
 
-/* LOGOUT */
 .logout {
   width:100%;
   background:#333;
@@ -164,8 +156,13 @@ const API_URL = "https://script.google.com/macros/s/AKfycbxyURi4bcmWwsaZ4vdXUUVn
 let DATA = [];
 let RECAMBIO = null;
 let scanning = false;
-let lastCode = null;
+let lastCode = "";
 let lastScanTime = 0;
+
+// NORMALIZAR
+function normalizar(c){
+  return String(c).trim().replace(/\s/g,"");
+}
 
 // SESIÓN
 let sesion = JSON.parse(localStorage.getItem("sesion"));
@@ -200,15 +197,14 @@ function iniciarScanner(){
   if(scanning) return;
 
   Quagga.init({
-    inputStream: {
+    inputStream:{
       type:"LiveStream",
       target:document.querySelector('#camera'),
       constraints:{ facingMode:"environment" }
     },
     decoder:{
       readers:["code_128_reader","ean_reader"]
-    },
-    locator:{ patchSize:"medium", halfSample:true }
+    }
   }, err=>{
     if(err) return;
     Quagga.start();
@@ -217,10 +213,13 @@ function iniciarScanner(){
 
   Quagga.onDetected(data=>{
 
-    let code = data.codeResult.code;
+    let raw = data.codeResult.code;
+    let code = normalizar(raw);
     let now = Date.now();
 
-    // evitar duplicados y ruido
+    // filtro calidad
+    if(code.length < 6) return;
+
     if(code === lastCode && (now - lastScanTime < 2000)) return;
 
     lastCode = code;
@@ -243,15 +242,22 @@ function cerrarScanner(){
 // MANUAL
 function manualEnter(e){
   if(e.key==="Enter"){
-    buscarRecambio(e.target.value);
+    buscarRecambio(normalizar(e.target.value));
     cerrarScanner();
   }
 }
 
-// BUSCAR
+// BUSCAR ROBUSTO
 function buscarRecambio(c){
 
-  RECAMBIO = DATA.find(r=>String(r.codigo)===String(c));
+  let codigoBuscado = normalizar(c);
+
+  RECAMBIO = DATA.find(r => normalizar(r.codigo) === codigoBuscado);
+
+  // fallback por si viene incompleto
+  if(!RECAMBIO){
+    RECAMBIO = DATA.find(r => normalizar(r.codigo).includes(codigoBuscado));
+  }
 
   if(!RECAMBIO){
     alert("Código no existe");
@@ -269,7 +275,7 @@ function getCantidad(){
   return n;
 }
 
-// REGISTRO
+// REGISTRAR
 async function registrar(tipo){
 
   if(!RECAMBIO) return alert("Escanea primero");
@@ -303,7 +309,6 @@ function limpiar(){
   RECAMBIO=null;
 }
 
-// NAV
 function go(p){ location.href=p; }
 
 function logout(){
