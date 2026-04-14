@@ -85,24 +85,28 @@ button:hover {
 
 <div class="container">
 
-<div class="form">
+<!-- 🔥 FORM PARA ACTIVAR ENTER -->
+<form class="form" onsubmit="login(event)">
 
-<input id="usuario" placeholder="Usuario">
-<input id="password" type="password" placeholder="Contraseña">
+<input id="usuario" placeholder="Usuario" autocomplete="username">
+<input id="password" type="password" placeholder="Contraseña" autocomplete="current-password">
 
-<button onclick="login()">Entrar</button>
+<button type="submit">Entrar</button>
 
-</div>
+</form>
 
 </div>
 
 <script>
 const API_URL = "https://script.google.com/macros/s/AKfycbxyURi4bcmWwsaZ4vdXUUVnr_Xu7y9BRG75tITfdwh-zgSIFpvC2lyKJLTT3XTFNS5XZA/exec";
 
-// LOGIN (MISMA LÓGICA)
-async function login(){
+// LOGIN
+async function login(e){
 
-  let u = usuario.value.trim();
+  // 🔥 evita recarga del form
+  if(e) e.preventDefault();
+
+  let u = usuario.value.trim().toLowerCase();
   let p = password.value.trim();
 
   if(!u || !p){
@@ -115,8 +119,11 @@ async function login(){
     let res = await fetch(API_URL);
     let json = await res.json();
 
+    console.log("Usuarios cargados:", json.usuarios);
+
     let user = (json.usuarios || []).find(x =>
-      x.usuario == u && x.password == p
+      String(x.usuario).trim().toLowerCase() === u &&
+      String(x.password).trim() === p
     );
 
     if(!user){
@@ -125,14 +132,14 @@ async function login(){
     }
 
     localStorage.setItem("sesion", JSON.stringify({
-      usuario: u,
+      usuario: user.usuario,
       timestamp: Date.now()
     }));
 
     window.location.href = "index.html";
 
   }catch(e){
-    alert("Error conexión");
+    alert("Error conexión con el servidor");
     console.error(e);
   }
 }
