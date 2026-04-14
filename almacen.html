@@ -98,7 +98,7 @@ tr { border-bottom:1px solid rgba(0,0,0,0.2); }
 </div>
 
 <script>
-const API_URL="https://script.google.com/macros/s/AKfycbxyURi4bcmWwsaZ4vdXUUVnr_Xu7y9BRG75tITfdwh-zgSIFpvC2lyKJLTT3XTFNS5XZA/exec?v=300";
+const API_URL="https://script.google.com/macros/s/AKfycbxyURi4bcmWwsaZ4vdXUUVnr_Xu7y9BRG75tITfdwh-zgSIFpvC2lyKJLTT3XTFNS5XZA/exec?v=400";
 
 let sesion = JSON.parse(localStorage.getItem("sesion"));
 if (!sesion) location="login.html";
@@ -108,8 +108,14 @@ let DATA={};
 window.onload=async()=>{
   const res=await fetch(API_URL);
   DATA=await res.json();
+  console.log("DATA:", DATA); // 👈 DEBUG
   render();
 };
+
+// 🔥 FUNCIÓN SEGURA PARA LEER ALMACÉN
+function getAlmacen(obj){
+  return obj.almacen || obj.Almacen || obj["ALMACEN"] || "";
+}
 
 function render(){
 
@@ -118,38 +124,44 @@ function render(){
   let rows = DATA.recambios
   .filter(r => r.activo === "SI")
 
-  // 🔐 FILTRO POR ALMACÉN (CLAVE)
+  // 🔐 FILTRO USUARIO (ROBUSTO)
   .filter(r => {
     if (sesion.almacen === "Todos") return true;
-    return r.almacen === sesion.almacen;
+
+    let alm = getAlmacen(r);
+    return alm === sesion.almacen;
   })
 
   // 🔎 BUSCADOR
   .filter(r =>
-    r.nombre.toLowerCase().includes(filtro) ||
-    r.codigo.includes(filtro)
+    (r.nombre || "").toLowerCase().includes(filtro) ||
+    (r.codigo || "").includes(filtro)
   )
 
   .map(r => {
 
+    let stock = Number(r.stock)||0;
+    let min = Number(r.min)||0;
+    let max = Number(r.max)||0;
+
     let clase="";
-    if (Number(r.stock) < Number(r.min)) clase="bajo";
-    else if (Number(r.stock) > Number(r.max)) clase="alto";
+    if (stock < min) clase="bajo";
+    else if (stock > max) clase="alto";
     else if (r.critico === "SI") clase="critico";
 
     return `<tr class="${clase}">
       <td>${r.codigo}</td>
       <td class="nombre">${r.nombre}</td>
       <td>${r["Ubicación"] || ""}</td>
-      <td>${r.almacen || ""}</td>
-      <td>${r.stock}</td>
-      <td>${r.min}</td>
-      <td>${r.max}</td>
+      <td>${getAlmacen(r)}</td>
+      <td>${stock}</td>
+      <td>${min}</td>
+      <td>${max}</td>
       <td>${r.critico}</td>
     </tr>`;
   }).join("");
 
-  tabla.innerHTML = rows;
+  tabla.innerHTML = rows || "<tr><td colspan='8'>Sin datos</td></tr>";
 }
 
 buscar.oninput = render;

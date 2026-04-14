@@ -1,5 +1,5 @@
 <script>
-const API_URL="https://script.google.com/macros/s/AKfycbxyURi4bcmWwsaZ4vdXUUVnr_Xu7y9BRG75tITfdwh-zgSIFpvC2lyKJLTT3XTFNS5XZA/exec?v=300";
+const API_URL="https://script.google.com/macros/s/AKfycbxyURi4bcmWwsaZ4vdXUUVnr_Xu7y9BRG75tITfdwh-zgSIFpvC2lyKJLTT3XTFNS5XZA/exec?v=400";
 
 let sesion = JSON.parse(localStorage.getItem("sesion"));
 if (!sesion) location="login.html";
@@ -12,22 +12,28 @@ window.onload=async()=>{
   render();
 };
 
+function getAlmacen(obj){
+  return obj.almacen || obj.Almacen || obj["ALMACEN"] || "";
+}
+
 function render(){
 
   let filtro = buscar.value.toLowerCase();
 
   tabla.innerHTML = DATA.movimientos
 
-  // 🔐 FILTRO POR ALMACÉN (IMPORTANTE)
   .filter(m => {
+
     if (sesion.almacen === "Todos") return true;
 
     let r = DATA.recambios.find(x => x.codigo == m.codigo);
-    return r && r.almacen === sesion.almacen;
+    if (!r) return false;
+
+    return getAlmacen(r) === sesion.almacen;
   })
 
   .filter(m =>
-    m.codigo.includes(filtro) ||
+    (m.codigo || "").includes(filtro) ||
     (m.orden || "").toLowerCase().includes(filtro)
   )
 
@@ -46,7 +52,7 @@ function render(){
       <td contenteditable="true">${m.orden || ""}</td>
       <td>${m.cantidad}</td>
     </tr>`;
-  }).join("");
+  }).join("") || "<tr><td colspan='7'>Sin datos</td></tr>";
 }
 
 buscar.oninput = render;
