@@ -6,8 +6,13 @@
 <meta name="viewport" content="width=device-width, initial-scale=1">
 
 <style>
-body { font-family: Arial; margin:0; }
+body {
+  font-family: Arial;
+  margin:0;
+  background:white;
+}
 
+/* FONDO */
 body::before {
   content:"";
   position:fixed;
@@ -19,10 +24,20 @@ body::before {
   z-index:-1;
 }
 
-.header { text-align:center; padding:15px; background:white; }
+/* HEADER */
+.header {
+  position:sticky;
+  top:0;
+  text-align:center;
+  padding:15px;
+  background:rgba(255,255,255,0.95);
+  box-shadow:0 2px 8px rgba(0,0,0,0.1);
+}
 
+/* CONTENEDOR */
 .container { padding:10px; }
 
+/* KPIs */
 .kpis {
   display:grid;
   grid-template-columns:1fr 1fr;
@@ -30,68 +45,104 @@ body::before {
 }
 
 .card {
-  padding:15px;
-  border-radius:10px;
+  padding:20px;
+  border-radius:12px;
   text-align:center;
+  cursor:pointer;
   color:white;
 }
 
 .rojo { background:#ff4d4d; }
 .azul { background:#0E3471; }
-.amarillo { background:#f0c000; color:black; }
+.amarillo { background:#fff3b0; color:black; }
 .verde { background:#4caf50; }
 
+/* BOTONES */
+button {
+  width:100%;
+  padding:12px;
+  margin-top:10px;
+  border:none;
+  border-radius:10px;
+  background:#0E3471;
+  color:white;
+  cursor:pointer;
+}
+
+/* TABLA */
 table {
   width:100%;
   border-collapse:collapse;
   margin-top:10px;
+  font-size:13px;
 }
 
-td, th {
+th, td {
   padding:8px;
-  border-bottom:1px solid #ccc;
+  border-bottom:1px solid rgba(0,0,0,0.2);
+  text-align:center;
 }
 
 td.nombre { text-align:left; }
 
-button {
-  width:100%;
-  padding:10px;
+/* FILTROS */
+.filtros {
+  display:flex;
+  gap:5px;
   margin-top:10px;
 }
+.filtros button { flex:1; }
+
+.seccion { margin-top:15px; }
+
 </style>
 </head>
 
 <body>
 
 <div class="header">
+  <img src="op.png" height="40">
   <h3>Consumibles</h3>
 </div>
 
 <div class="container">
 
+<!-- KPIs -->
 <div class="kpis" id="kpis"></div>
 
-<div id="bajo"></div>
-<div id="alto"></div>
+<!-- BOTONES TOGGLE -->
+<button onclick="toggleBajo()">🔻 Bajo mínimo</button>
+<div id="tablaBajo"></div>
 
-<h4>Consumo</h4>
-<div id="consumo"></div>
+<button onclick="toggleAlto()">🔺 Sobre máximo</button>
+<div id="tablaAlto"></div>
 
-<h4>Histórico</h4>
-<table>
-<tbody id="hist"></tbody>
-</table>
+<!-- CONSUMO -->
+<div class="seccion">
+  <h4>📊 Consumo</h4>
+
+  <div class="filtros">
+    <button onclick="setFiltro('hoy')">Hoy</button>
+    <button onclick="setFiltro('7')">7 días</button>
+    <button onclick="setFiltro('30')">30 días</button>
+    <button onclick="setFiltro('all')">Siempre</button>
+  </div>
+
+  <div id="consumo"></div>
+</div>
 
 <button onclick="volver()">⬅ Volver</button>
 
 </div>
 
 <script>
-const API="https://script.google.com/macros/s/AKfycbxyURi4bcmWwsaZ4vdXUUVnr_Xu7y9BRG75tITfdwh-zgSIFpvC2lyKJLTT3XTFNS5XZA/exec?v=300";
+const API="https://script.google.com/macros/s/AKfycbxyURi4bcmWwsaZ4vdXUUVnr_Xu7y9BRG75tITfdwh-zgSIFpvC2lyKJLTT3XTFNS5XZA/exec?v=500";
 
 let REC=[], MOV=[];
+let mostrarBajo=false, mostrarAlto=false;
+let filtroTiempo="all";
 
+// HELPERS
 function n(v){ return Number(v)||0; }
 
 function esConsumible(r){
@@ -99,61 +150,120 @@ function esConsumible(r){
 }
 
 window.onload=async()=>{
-  let r=await fetch(API);
-  let j=await r.json();
+  const res=await fetch(API);
+  const json=await res.json();
 
-  REC=(j.recambios||[]).filter(esConsumible);
-  MOV=j.movimientos||[];
+  REC=(json.recambios||[]).filter(esConsumible);
+  MOV=json.movimientos||[];
 
-  render();
+  renderKPIs();
+  renderConsumo();
 };
 
-function render(){
+// KPIs
+function renderKPIs(){
 
   let bajo=REC.filter(r=>n(r.stock)<n(r.min));
   let alto=REC.filter(r=>n(r.stock)>n(r.max));
   let crit=REC.filter(r=>String(r.critico).toUpperCase()=="SI");
 
   kpis.innerHTML=`
-    <div class="card rojo">Bajo mínimo<br>${bajo.length}</div>
-    <div class="card azul">Sobre máximo<br>${alto.length}</div>
-    <div class="card amarillo">Críticos<br>${crit.length}</div>
-    <div class="card verde">Total<br>${REC.length}</div>
+    <div class="card rojo">${bajo.length}<br>Bajo mínimo</div>
+    <div class="card azul">${alto.length}<br>Sobre máximo</div>
+    <div class="card amarillo">${crit.length}<br>Críticos</div>
+    <div class="card verde">${REC.length}<br>Total</div>
   `;
-
-  renderTabla("bajo", bajo, "Bajo mínimo");
-  renderTabla("alto", alto, "Sobre máximo");
-
-  let uso={};
-  MOV.filter(m=>m.tipo=="salida")
-  .forEach(m=>{
-    uso[m.codigo]=(uso[m.codigo]||0)+n(m.cantidad);
-  });
-
-  consumo.innerHTML=Object.entries(uso)
-    .map(x=>x[0]+" → "+x[1]).join("<br>");
-
-  hist.innerHTML=MOV.slice(-20)
-    .map(m=>`<tr><td>${m.fecha}</td><td>${m.codigo}</td><td>${m.tipo}</td><td>${m.cantidad}</td></tr>`)
-    .join("");
 }
 
-function renderTabla(id,data,titulo){
-  document.getElementById(id).innerHTML=`
-    <h4>${titulo}</h4>
+// TOGGLES
+function toggleBajo(){
+  mostrarBajo=!mostrarBajo;
+  renderTablas();
+}
+
+function toggleAlto(){
+  mostrarAlto=!mostrarAlto;
+  renderTablas();
+}
+
+// TABLAS
+function renderTablas(){
+
+  let bajo=REC.filter(r=>n(r.stock)<n(r.min));
+  let alto=REC.filter(r=>n(r.stock)>n(r.max));
+
+  tablaBajo.innerHTML = mostrarBajo ? generarTabla(bajo) : "";
+  tablaAlto.innerHTML = mostrarAlto ? generarTabla(alto) : "";
+}
+
+function generarTabla(data){
+  return `
     <table>
       <tr><th>Código</th><th>Nombre</th><th>Stock</th></tr>
       ${data.map(r=>`
         <tr>
           <td>${r.codigo}</td>
           <td class="nombre">${r.nombre}</td>
-          <td>${r.stock}</td>
-        </tr>`).join("")}
+          <td>${n(r.stock)}</td>
+        </tr>
+      `).join("")}
     </table>
   `;
 }
 
-function volver(){ location.href="direccion.html"; }
+// FILTRO TIEMPO
+function setFiltro(f){
+  filtroTiempo=f;
+  renderConsumo();
+}
+
+// CONSUMO
+function renderConsumo(){
+
+  let now=new Date();
+
+  let filtrado=MOV.filter(m=>{
+
+    let f=new Date(m.fecha);
+
+    if(filtroTiempo==="hoy")
+      return f.toDateString()===now.toDateString();
+
+    if(filtroTiempo==="7")
+      return (now-f)<7*86400000;
+
+    if(filtroTiempo==="30")
+      return (now-f)<30*86400000;
+
+    return true;
+  });
+
+  filtrado = filtrado.filter(m =>
+    REC.find(r=>r.codigo==m.codigo)
+  );
+
+  let uso={};
+
+  filtrado
+    .filter(m=>m.tipo==="salida")
+    .forEach(m=>{
+      uso[m.codigo]=(uso[m.codigo]||0)+n(m.cantidad);
+    });
+
+  let lista=Object.entries(uso).sort((a,b)=>b[1]-a[1]);
+
+  consumo.innerHTML=`
+    ${lista.map(([cod,val])=>{
+      let nombre=REC.find(r=>r.codigo==cod)?.nombre||"";
+      return `${nombre}: <b>${val}</b>`;
+    }).join("<br>")}
+  `;
+}
+
+// NAV
+function volver(){
+  window.location.href="direccion.html";
+}
 </script>
 
 </body>
