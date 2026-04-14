@@ -34,9 +34,7 @@ body::before {
   box-shadow:0 2px 8px rgba(0,0,0,0.1);
 }
 
-.container {
-  padding:15px;
-}
+.container { padding:15px; }
 
 /* INPUTS */
 input {
@@ -45,15 +43,14 @@ input {
   margin:4px 0;
   border-radius:10px;
   border:1px solid #ccc;
-  box-sizing:border-box;
 }
 
 /* BOTONES */
 button {
-  padding:12px;
+  padding:14px;
   border:none;
   border-radius:12px;
-  font-size:15px;
+  font-size:16px;
   cursor:pointer;
   box-shadow:0 3px 6px rgba(0,0,0,0.2);
 }
@@ -69,36 +66,31 @@ button:hover { opacity:0.9; }
   color:white;
 }
 
-/* FILA ACCIONES */
+/* FILAS */
 .row {
   display:flex;
   justify-content:space-between;
-  gap:2%;
   margin-top:8px;
 }
 
-.btnEntrada {
-  width:49%;
-  background:green;
+/* 2 BOTONES */
+.btnEntrada, .btnSalida {
+  width:49.5%;
   color:white;
 }
 
-.btnSalida {
-  width:49%;
-  background:red;
-  color:white;
-}
+.btnEntrada { background:green; }
+.btnSalida { background:red; }
 
-/* NAV */
+/* 3 BOTONES */
 .nav {
   display:flex;
   justify-content:space-between;
-  gap:2%;
   margin-top:8px;
 }
 
 .nav button {
-  width:30%;
+  width:32.75%;
   background:#0E3471;
   color:white;
 }
@@ -113,15 +105,19 @@ button:hover { opacity:0.9; }
 
 /* SCANNER */
 #scannerBox {
-  display:none;
-  margin-top:8px;
+  max-height:0;
+  overflow:hidden;
+  transition:all 0.3s ease;
+}
+
+#scannerBox.active {
+  max-height:350px;
 }
 
 #camera {
   width:100%;
   height:240px;
   border-radius:12px;
-  overflow:hidden;
 }
 </style>
 </head>
@@ -139,7 +135,7 @@ button:hover { opacity:0.9; }
 
 <div id="scannerBox">
   <div id="camera"></div>
-  <input id="codigoManual" placeholder="Introducir código manual" onkeypress="manualEnter(event)">
+  <input id="codigoManual" placeholder="Código manual" onkeypress="manualEnter(event)">
 </div>
 
 <input id="codigo" placeholder="Código" readonly>
@@ -168,174 +164,137 @@ const API_URL = "https://script.google.com/macros/s/AKfycbxyURi4bcmWwsaZ4vdXUUVn
 let DATA = [];
 let RECAMBIO = null;
 let scanning = false;
+let lastCode = null;
 let lastScanTime = 0;
 
 // SESIÓN
 let sesion = JSON.parse(localStorage.getItem("sesion"));
 if(!sesion) location.href="login.html";
 
-// BOTÓN ESTADÍSTICAS
 if(["alberto","jose luis"].includes(sesion.usuario.toLowerCase())){
   document.getElementById("btnStats").style.display="block";
 }
 
-// CARGA
-window.onload = async () => {
+// LOAD
+window.onload = async ()=>{
   let res = await fetch(API_URL);
   let json = await res.json();
   DATA = json.recambios || [];
 };
 
-// TOGGLE SCANNER
+// TOGGLE
 function toggleScanner(){
   let box = document.getElementById("scannerBox");
 
-  if(box.style.display === "none"){
-    box.style.display = "block";
+  if(!box.classList.contains("active")){
+    box.classList.add("active");
     iniciarScanner();
   } else {
     cerrarScanner();
   }
 }
 
-// INICIAR SCANNER
+// SCANNER
 function iniciarScanner(){
 
   if(scanning) return;
 
   Quagga.init({
     inputStream: {
-      type: "LiveStream",
-      target: document.querySelector('#camera'),
-      constraints: { facingMode: "environment" }
+      type:"LiveStream",
+      target:document.querySelector('#camera'),
+      constraints:{ facingMode:"environment" }
     },
-    decoder: {
-      readers: ["code_128_reader","ean_reader","ean_8_reader"]
-    }
-  }, function(err){
+    decoder:{
+      readers:["code_128_reader","ean_reader"]
+    },
+    locator:{ patchSize:"medium", halfSample:true }
+  }, err=>{
     if(err) return;
     Quagga.start();
-    scanning = true;
+    scanning=true;
   });
 
-  Quagga.onDetected(data => {
-
-    let now = Date.now();
-    if(now - lastScanTime < 2000) return;
-
-    lastScanTime = now;
+  Quagga.onDetected(data=>{
 
     let code = data.codeResult.code;
+    let now = Date.now();
+
+    // evitar duplicados y ruido
+    if(code === lastCode && (now - lastScanTime < 2000)) return;
+
+    lastCode = code;
+    lastScanTime = now;
 
     buscarRecambio(code);
-
-    // 🔥 CERRAR AUTOMÁTICO
     cerrarScanner();
   });
 }
 
-// CERRAR SCANNER
 function cerrarScanner(){
-  let box = document.getElementById("scannerBox");
-  box.style.display = "none";
+  document.getElementById("scannerBox").classList.remove("active");
 
   if(scanning){
     Quagga.stop();
-    scanning = false;
+    scanning=false;
   }
 }
 
-// PC INPUT
+// MANUAL
 function manualEnter(e){
-  if(e.key === "Enter"){
+  if(e.key==="Enter"){
     buscarRecambio(e.target.value);
     cerrarScanner();
   }
 }
 
 // BUSCAR
-function buscarRecambio(codigoLeido){
+function buscarRecambio(c){
 
-  RECAMBIO = DATA.find(r => String(r.codigo) === String(codigoLeido));
+  RECAMBIO = DATA.find(r=>String(r.codigo)===String(c));
 
   if(!RECAMBIO){
-    sonidoError();
-    vibrar();
     alert("Código no existe");
     return;
   }
 
   codigo.value = RECAMBIO.codigo;
-  nombre.value = RECAMBIO.nombre || "";
-
-  sonidoOK();
-  vibrar();
+  nombre.value = RECAMBIO.nombre;
 }
 
 // VALIDACIÓN
 function getCantidad(){
-  let num = Number(cantidad.value);
-  if(!num || num <= 0) return null;
-
-  if(!Number.isInteger(num)){
-    alert("Solo números enteros");
-    return null;
-  }
-
-  return num;
+  let n = Number(cantidad.value);
+  if(!n || n<=0 || !Number.isInteger(n)) return null;
+  return n;
 }
 
-// REGISTRAR
+// REGISTRO
 async function registrar(tipo){
 
-  if(!RECAMBIO){
-    alert("Escanea un recambio primero");
-    return;
-  }
+  if(!RECAMBIO) return alert("Escanea primero");
 
   let cant = getCantidad();
+  if(!cant) return alert("Cantidad inválida");
 
-  if(!cant){
-    alert("Cantidad inválida");
-    return;
-  }
+  let stock = Number(RECAMBIO.stock)||0;
+  if(tipo==="salida" && cant>stock) return alert("Stock insuficiente");
 
-  let stock = Number(RECAMBIO.stock) || 0;
+  await fetch(API_URL,{
+    method:"POST",
+    body:JSON.stringify({
+      tipo,
+      codigo:RECAMBIO.codigo,
+      cantidad:cant,
+      usuario:sesion.usuario,
+      orden:ot.value||""
+    })
+  });
 
-  if(tipo === "salida" && cant > stock){
-    alert("Stock insuficiente");
-    sonidoError();
-    vibrar();
-    return;
-  }
-
-  let payload = {
-    tipo: tipo,
-    codigo: RECAMBIO.codigo,
-    cantidad: cant,
-    usuario: sesion.usuario,
-    orden: ot.value || ""
-  };
-
-  try{
-    await fetch(API_URL, {
-      method:"POST",
-      body: JSON.stringify(payload)
-    });
-
-    sonidoOK();
-    vibrar();
-
-    alert("Movimiento registrado correctamente");
-
-    limpiar();
-
-  }catch(e){
-    alert("Error al guardar");
-  }
+  alert("Movimiento registrado");
+  limpiar();
 }
 
-// LIMPIAR
 function limpiar(){
   codigo.value="";
   nombre.value="";
@@ -344,17 +303,8 @@ function limpiar(){
   RECAMBIO=null;
 }
 
-// SONIDOS
-function sonidoOK(){ new Audio("ok.mp3").play(); }
-function sonidoError(){ new Audio("error.mp3").play(); }
-
-// VIBRAR
-function vibrar(){
-  if(navigator.vibrate) navigator.vibrate(100);
-}
-
 // NAV
-function go(p){ window.location.href=p; }
+function go(p){ location.href=p; }
 
 function logout(){
   localStorage.removeItem("sesion");
