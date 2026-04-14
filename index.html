@@ -5,6 +5,8 @@
 <title>Gestión Recambios</title>
 <meta name="viewport" content="width=device-width, initial-scale=1">
 
+<script src="https://unpkg.com/html5-qrcode"></script>
+
 <style>
 body {
   font-family: Arial;
@@ -102,7 +104,11 @@ button:hover { opacity:0.9; }
 }
 
 #scannerBox.active {
-  max-height:200px;
+  max-height:400px;
+}
+
+#reader {
+  width:100%;
 }
 </style>
 </head>
@@ -119,7 +125,8 @@ button:hover { opacity:0.9; }
 <button class="btnScan" onclick="toggleScanner()">📷 Escanear código</button>
 
 <div id="scannerBox">
-  <input id="codigoScan" placeholder="Escanea o introduce código" autofocus>
+  <div id="reader"></div>
+  <input id="codigoManual" placeholder="Código manual" onkeypress="manualEnter(event)">
 </div>
 
 <input id="codigo" placeholder="Código" readonly>
@@ -147,7 +154,8 @@ const API_URL = "https://script.google.com/macros/s/AKfycbxyURi4bcmWwsaZ4vdXUUVn
 
 let DATA = [];
 let RECAMBIO = null;
-let scanTimer = null;
+let scanner = null;
+let scanning = false;
 
 // SESIÓN
 let sesion = JSON.parse(localStorage.getItem("sesion"));
@@ -170,25 +178,52 @@ function toggleScanner(){
 
   if(!box.classList.contains("active")){
     box.classList.add("active");
-    document.getElementById("codigoScan").focus();
+    iniciarScanner();
   } else {
-    box.classList.remove("active");
+    cerrarScanner();
   }
 }
 
-// ESCANEO (2s)
-document.getElementById("codigoScan").addEventListener("input", function(){
+// SCANNER
+function iniciarScanner(){
 
-  clearTimeout(scanTimer);
+  if(scanning) return;
 
-  scanTimer = setTimeout(()=>{
-    buscarRecambio(this.value);
-    cerrarScanner();
-  },2000);
-});
+  scanner = new Html5Qrcode("reader");
+
+  scanner.start(
+    { facingMode: "environment" },
+    {
+      fps: 10,
+      qrbox: { width: 250, height: 120 }
+    },
+    (decodedText) => {
+
+      buscarRecambio(decodedText);
+      cerrarScanner();
+    }
+  );
+
+  scanning = true;
+}
 
 function cerrarScanner(){
   document.getElementById("scannerBox").classList.remove("active");
+
+  if(scanner){
+    scanner.stop().then(()=>{
+      scanner.clear();
+      scanning = false;
+    });
+  }
+}
+
+// MANUAL
+function manualEnter(e){
+  if(e.key==="Enter"){
+    buscarRecambio(e.target.value);
+    cerrarScanner();
+  }
 }
 
 // BUSCAR
@@ -203,8 +238,8 @@ function buscarRecambio(codigoLeido){
     return;
   }
 
-  document.getElementById("codigo").value = RECAMBIO.codigo;
-  document.getElementById("nombre").value = RECAMBIO.nombre;
+  codigo.value = RECAMBIO.codigo;
+  nombre.value = RECAMBIO.nombre;
 }
 
 // VALIDACIÓN
