@@ -85,8 +85,8 @@ button:hover { opacity:0.9; }
 
 <form class="form" onsubmit="login(event)">
 
-<input id="usuario" placeholder="Usuario" autocomplete="username">
-<input id="pin" type="password" placeholder="PIN" autocomplete="current-password">
+<input id="usuario" placeholder="Usuario">
+<input id="pin" type="password" placeholder="PIN">
 
 <button type="submit">Entrar</button>
 
@@ -114,18 +114,29 @@ async function login(e){
     let res = await fetch(API_URL);
     let json = await res.json();
 
-    let user = (json.usuarios || []).find(x =>
-      String(x.usuario).trim().toLowerCase() === u &&
-      String(x.pin).trim() === p
-    );
+    console.log("Usuarios:", json.usuarios);
+
+    let user = (json.usuarios || []).find(x => {
+
+      let nombre = String(x.nombre || "").trim().toLowerCase();
+      let pinSheet = String(x.pin || "").trim();
+      let activo = String(x.activo || "").trim().toUpperCase();
+
+      return (
+        nombre === u &&
+        pinSheet === p &&
+        activo === "SI"
+      );
+    });
 
     if(!user){
-      alert("PIN o usuario incorrecto");
+      alert("Usuario, PIN incorrecto o usuario inactivo");
       return;
     }
 
+    // GUARDAR SESIÓN
     localStorage.setItem("sesion", JSON.stringify({
-      usuario: user.usuario,
+      usuario: user.nombre,
       timestamp: Date.now()
     }));
 
