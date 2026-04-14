@@ -34,7 +34,9 @@ body::before {
   box-shadow:0 2px 8px rgba(0,0,0,0.1);
 }
 
-.container { padding:15px; }
+.container {
+  padding:15px;
+}
 
 /* INPUTS */
 input {
@@ -56,22 +58,46 @@ button {
   box-shadow:0 4px 8px rgba(0,0,0,0.2);
 }
 
-button:hover { opacity:0.9; }
+button:hover {
+  opacity:0.9;
+}
 
-/* ACCIONES */
-.row { display:flex; }
+/* BOTÓN ESCÁNER */
+.btnScan {
+  display:block;
+  margin:0 auto;
+  background:#0E3471;
+  color:white;
+}
 
-.btnEntrada { width:50%; background:green; color:white; }
-.btnSalida { width:50%; background:red; color:white; }
+/* FILA ACCIONES */
+.row {
+  display:flex;
+  justify-content:space-between;
+  margin-top:10px;
+}
 
-/* NAV 3 BOTONES */
+.btnEntrada {
+  width:49%;
+  background:green;
+  color:white;
+}
+
+.btnSalida {
+  width:49%;
+  background:red;
+  color:white;
+}
+
+/* NAV */
 .nav {
   display:flex;
+  justify-content:space-between;
   margin-top:10px;
 }
 
 .nav button {
-  width:33.33%;
+  width:30%;
   background:#0E3471;
   color:white;
 }
@@ -108,10 +134,15 @@ button:hover { opacity:0.9; }
 
 <div class="container">
 
-<button onclick="toggleScanner()">📷 Escanear código</button>
+<!-- BOTÓN ESCÁNER -->
+<button class="btnScan" onclick="toggleScanner()">📷 Escanear código</button>
 
+<!-- SCANNER -->
 <div id="scannerBox">
   <div id="camera"></div>
+
+  <!-- INPUT PARA PC -->
+  <input id="codigoManual" placeholder="Introducir código manual" onkeypress="manualEnter(event)">
 </div>
 
 <input id="codigo" placeholder="Código" readonly>
@@ -171,7 +202,7 @@ function toggleScanner(){
   }
 }
 
-// INICIAR SCANNER
+// SCANNER CÁMARA
 function iniciarScanner(){
 
   if(scanning) return;
@@ -186,7 +217,7 @@ function iniciarScanner(){
       readers: ["code_128_reader","ean_reader","ean_8_reader"]
     }
   }, function(err){
-    if(err) return console.error(err);
+    if(err) return;
     Quagga.start();
     scanning = true;
   });
@@ -194,23 +225,26 @@ function iniciarScanner(){
   Quagga.onDetected(data => {
 
     let now = Date.now();
-
-    // 🔥 2 SEGUNDOS
     if(now - lastScanTime < 2000) return;
 
     lastScanTime = now;
 
-    let codigoLeido = data.codeResult.code;
-
-    buscarRecambio(codigoLeido);
+    let code = data.codeResult.code;
+    buscarRecambio(code);
   });
 }
 
-// DETENER
 function detenerScanner(){
   if(scanning){
     Quagga.stop();
     scanning = false;
+  }
+}
+
+// PC INPUT
+function manualEnter(e){
+  if(e.key === "Enter"){
+    buscarRecambio(e.target.value);
   }
 }
 
@@ -235,7 +269,6 @@ function buscarRecambio(codigoLeido){
 
 // VALIDACIÓN
 function getCantidad(){
-
   let num = Number(cantidad.value);
 
   if(!num || num <= 0) return null;
