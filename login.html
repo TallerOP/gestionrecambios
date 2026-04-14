@@ -1,101 +1,6 @@
-<!DOCTYPE html>
-<html>
-<head>
-<meta charset="UTF-8">
-<title>Login</title>
-<meta name="viewport" content="width=device-width, initial-scale=1">
-
-<style>
-body {
-  font-family: Arial;
-  margin:0;
-  background:white;
-}
-
-/* FONDO */
-body::before {
-  content:"";
-  position:fixed;
-  top:0;
-  left:0;
-  width:100%;
-  height:100%;
-  background:url("op.png") no-repeat center center;
-  background-size:60%;
-  opacity:0.3;
-  z-index:-1;
-}
-
-/* HEADER */
-.header {
-  text-align:center;
-  padding:20px;
-  background:rgba(255,255,255,0.95);
-  box-shadow:0 2px 8px rgba(0,0,0,0.1);
-}
-
-/* CONTENEDOR */
-.container {
-  padding:20px;
-}
-
-/* FORM */
-.form {
-  display:flex;
-  flex-direction:column;
-  gap:15px;
-}
-
-/* INPUTS */
-input {
-  width:100%;
-  padding:14px;
-  border-radius:12px;
-  border:1px solid #ccc;
-  font-size:16px;
-  box-sizing:border-box;
-}
-
-/* BOTÓN */
-button {
-  width:100%;
-  padding:14px;
-  border:none;
-  border-radius:12px;
-  font-size:16px;
-  background:#0E3471;
-  color:white;
-  cursor:pointer;
-  box-shadow:0 4px 8px rgba(0,0,0,0.2);
-}
-
-button:hover { opacity:0.9; }
-
-</style>
-</head>
-
-<body>
-
-<div class="header">
-  <img src="op.png" height="50">
-  <h2>Gestión de recambios OP Mobility Pedrola</h2>
-</div>
-
-<div class="container">
-
-<form class="form" onsubmit="login(event)">
-
-<input id="usuario" placeholder="Usuario">
-<input id="pin" type="password" placeholder="PIN">
-
-<button type="submit">Entrar</button>
-
-</form>
-
-</div>
-
 <script>
 const API_URL = "https://script.google.com/macros/s/AKfycbxyURi4bcmWwsaZ4vdXUUVnr_Xu7y9BRG75tITfdwh-zgSIFpvC2lyKJLTT3XTFNS5XZA/exec";
+const CACHE_TIME = 5 * 60 * 1000; // 5 minutos
 
 async function login(e){
 
@@ -111,22 +16,15 @@ async function login(e){
 
   try{
 
-    let res = await fetch(API_URL);
-    let json = await res.json();
+    let usuarios = await getUsuarios();
 
-    console.log("Usuarios:", json.usuarios);
-
-    let user = (json.usuarios || []).find(x => {
+    let user = usuarios.find(x => {
 
       let nombre = String(x.nombre || "").trim().toLowerCase();
       let pinSheet = String(x.pin || "").trim();
       let activo = String(x.activo || "").trim().toUpperCase();
 
-      return (
-        nombre === u &&
-        pinSheet === p &&
-        activo === "SI"
-      );
+      return nombre === u && pinSheet === p && activo === "SI";
     });
 
     if(!user){
@@ -134,7 +32,6 @@ async function login(e){
       return;
     }
 
-    // GUARDAR SESIÓN
     localStorage.setItem("sesion", JSON.stringify({
       usuario: user.nombre,
       timestamp: Date.now()
@@ -143,11 +40,32 @@ async function login(e){
     window.location.href = "index.html";
 
   }catch(err){
-    alert("Error conexión con el servidor");
+    alert("Error conexión");
     console.error(err);
   }
 }
-</script>
 
-</body>
-</html>
+// 🔥 CACHE INTELIGENTE
+async function getUsuarios(){
+
+  let cache = JSON.parse(localStorage.getItem("usuarios_cache"));
+
+  // Si hay cache válida → usarla
+  if(cache && (Date.now() - cache.timestamp < CACHE_TIME)){
+    return cache.data;
+  }
+
+  // Si no → fetch
+  let res = await fetch(API_URL);
+  let json = await res.json();
+
+  let usuarios = json.usuarios || [];
+
+  localStorage.setItem("usuarios_cache", JSON.stringify({
+    data: usuarios,
+    timestamp: Date.now()
+  }));
+
+  return usuarios;
+}
+</script>
