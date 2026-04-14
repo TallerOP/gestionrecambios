@@ -3,60 +3,138 @@
 <head>
 <meta charset="UTF-8">
 <title>Login</title>
-
 <meta name="viewport" content="width=device-width, initial-scale=1">
 
 <style>
-body { font-family: Arial; padding:20px; }
-
-input, button {
-  width:100%;
-  padding:12px;
-  margin:5px 0;
+body {
+  font-family: Arial;
+  margin:0;
+  background:white;
 }
 
+/* FONDO */
+body::before {
+  content:"";
+  position:fixed;
+  top:0;
+  left:0;
+  width:100%;
+  height:100%;
+  background:url("op.png") no-repeat center center;
+  background-size:60%;
+  opacity:0.3;
+  z-index:-1;
+}
+
+/* HEADER */
+.header {
+  text-align:center;
+  padding:20px;
+  background:rgba(255,255,255,0.95);
+  box-shadow:0 2px 8px rgba(0,0,0,0.1);
+}
+
+/* CONTENEDOR */
+.container {
+  padding:20px;
+}
+
+/* FORM */
+.form {
+  display:flex;
+  flex-direction:column;
+  gap:15px;
+}
+
+/* INPUTS */
+input {
+  width:100%;
+  padding:14px;
+  border-radius:12px;
+  border:1px solid #ccc;
+  font-size:16px;
+  box-sizing:border-box;
+}
+
+/* BOTÓN */
 button {
+  width:100%;
+  padding:14px;
+  border:none;
+  border-radius:12px;
+  font-size:16px;
   background:#0E3471;
   color:white;
-  border:none;
+  cursor:pointer;
+  box-shadow:0 4px 8px rgba(0,0,0,0.2);
 }
+
+button:hover {
+  opacity:0.9;
+}
+
 </style>
 </head>
 
 <body>
 
-<h2>Login</h2>
+<div class="header">
+  <img src="op.png" height="50">
+  <h2>Gestión de recambios OP Mobility Pedrola</h2>
+</div>
 
-<input id="nombre" placeholder="Usuario">
-<input id="pin" type="password" placeholder="PIN">
+<div class="container">
+
+<div class="form">
+
+<input id="usuario" placeholder="Usuario">
+<input id="password" type="password" placeholder="Contraseña">
+
 <button onclick="login()">Entrar</button>
 
+</div>
+
+</div>
+
 <script>
-const API_URL = "https://script.google.com/macros/s/AKfycbxyURi4bcmWwsaZ4vdXUUVnr_Xu7y9BRG75tITfdwh-zgSIFpvC2lyKJLTT3XTFNS5XZA/exec?v=100";
+const API_URL = "https://script.google.com/macros/s/AKfycbxyURi4bcmWwsaZ4vdXUUVnr_Xu7y9BRG75tITfdwh-zgSIFpvC2lyKJLTT3XTFNS5XZA/exec";
 
-let DATA={};
+// LOGIN (MISMA LÓGICA)
+async function login(){
 
-window.onload = async ()=>{
-  const res = await fetch(API_URL);
-  DATA = await res.json();
-};
+  let u = usuario.value.trim();
+  let p = password.value.trim();
 
-function login(){
+  if(!u || !p){
+    alert("Introduce usuario y contraseña");
+    return;
+  }
 
-  const user = DATA.usuarios.find(u =>
-    u.nombre === nombre.value &&
-    u.pin == pin.value &&
-    u.activo === "SI"
-  );
+  try{
 
-  if (!user) return alert("Error");
+    let res = await fetch(API_URL);
+    let json = await res.json();
 
-  localStorage.setItem("sesion", JSON.stringify({
-    usuario: user.nombre,
-    almacen: user.almacen || "TODOS"
-  }));
+    let user = (json.usuarios || []).find(x =>
+      x.usuario == u && x.password == p
+    );
 
-  location="index.html";
+    if(!user){
+      alert("Credenciales incorrectas");
+      return;
+    }
+
+    localStorage.setItem("sesion", JSON.stringify({
+      usuario: u,
+      timestamp: Date.now()
+    }));
+
+    window.location.href = "index.html";
+
+  }catch(e){
+    alert("Error conexión");
+    console.error(e);
+  }
 }
 </script>
 
