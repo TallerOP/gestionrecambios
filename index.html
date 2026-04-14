@@ -1,309 +1,141 @@
-<!DOCTYPE html>
-<html>
-<head>
-<meta charset="UTF-8">
-<title>Almacén</title>
-
-<meta name="viewport" content="width=device-width, initial-scale=1">
-
-<script src="https://unpkg.com/html5-qrcode"></script>
-
-<style>
-body {
-  font-family: Arial;
-  margin:0;
-  background:white;
-}
-
-/* FONDO */
-body::before {
-  content:"";
-  position:fixed;
-  width:100%;
-  height:100%;
-  background:url("op.png") center no-repeat;
-  background-size:60%;
-  opacity:0.5;
-  z-index:-1;
-}
-
-/* HEADER */
-.header {
-  text-align:center;
-  padding:15px;
-  background:#eef5ff;
-}
-
-/* CONTENIDO */
-.container { padding:10px; }
-
-input, button {
-  width:100%;
-  padding:12px;
-  margin:6px 0;
-  box-sizing:border-box;
-  border-radius:10px;
-  border:none;
-  font-size:14px;
-}
-
-/* INPUT */
-input {
-  border:1px solid #ccc;
-}
-
-/* BOTONES BASE */
-button {
-  cursor:pointer;
-  box-shadow:0 4px 0 rgba(0,0,0,0.2);
-  transition:0.2s;
-}
-
-/* HOVER GENERAL */
-button:hover {
-  filter:brightness(1.1);
-}
-
-/* CLICK */
-button:active {
-  transform:translateY(2px);
-  box-shadow:0 2px 0 rgba(0,0,0,0.2);
-}
-
-/* BOTONES PRINCIPALES */
-.botones {
-  display:flex;
-  gap:6px;
-}
-
-.botones button {
-  width:50%;
-  font-weight:bold;
-}
-
-.entrada {
-  background:#28a745;
-  color:white;
-}
-
-.salida {
-  background:#dc3545;
-  color:white;
-}
-
-/* NAV */
-.nav {
-  display:flex;
-  gap:6px;
-  margin-top:10px;
-}
-
-.nav button {
-  flex:1;
-  background:#0E3471;
-  color:white;
-}
-
-/* SCANNER */
-#reader {
-  width:100%;
-  display:none;
-  margin-top:10px;
-  border-radius:10px;
-  overflow:hidden;
-}
-
-/* LOGOUT */
-.logout {
-  margin-top:20px;
-}
-
-.logout button {
-  background:#333;
-  color:white;
-}
-</style>
-</head>
-
-<body>
-
-<div class="header">
-  <img src="op.png" height="40">
-  <h3>Gestión de recambios OP Mobility Pedrola</h3>
-</div>
-
-<div class="container">
-
-<button onclick="toggleScanner()">📷 Escanear código</button>
-<div id="reader"></div>
-
-<input id="codigo" placeholder="Código">
-<input id="nombre" placeholder="Nombre" disabled>
-<input id="cantidad" type="number" min="1" placeholder="Cantidad">
-<input id="ot" placeholder="OT">
-
-<div class="botones">
-  <button class="entrada" onclick="registrar('entrada')">Añadir material</button>
-  <button class="salida" onclick="registrar('salida')">Sacar material</button>
-</div>
-
-<div class="nav">
-  <button onclick="irAlmacen()">Almacén</button>
-  <button onclick="irHistorico()">Histórico</button>
-  <button id="btnDashboard" style="display:none;" onclick="irDashboard()">Estadísticas</button>
-</div>
-
-<div class="logout">
-  <button onclick="logout()">Cerrar sesión</button>
-</div>
-
-</div>
-
 <script>
-const API_URL = "https://script.google.com/macros/s/AKfycbxyURi4bcmWwsaZ4vdXUUVnr_Xu7y9BRG75tITfdwh-zgSIFpvC2lyKJLTT3XTFNS5XZA/exec?v=140";
+const API_URL = "https://script.google.com/macros/s/AKfycbxyURi4bcmWwsaZ4vdXUUVnr_Xu7y9BRG75tITfdwh-zgSIFpvC2lyKJLTT3XTFNS5XZA/exec";
 
-// SESIÓN
-let sesion = JSON.parse(localStorage.getItem("sesion"));
-if (!sesion) location="login.html";
-
-// DASHBOARD
-if (["Alberto","Jose Luis"].includes(sesion.usuario)) {
-  window.addEventListener("DOMContentLoaded",()=>{
-    document.getElementById("btnDashboard").style.display="block";
-  });
-}
-
-let DATA = {};
-let scanner = null;
-let scannerActivo = false;
-
-// INIT
-window.onload = async ()=>{
-  await cargarDatos();
-};
+let DATA = [];
+let RECAMBIO = null;
 
 // CARGA
-async function cargarDatos(){
-  let cache = localStorage.getItem("data_cache");
-  if (cache) DATA = JSON.parse(cache);
+window.onload = async () => {
 
-  try {
-    const res = await fetch(API_URL);
-    const json = await res.json();
+  let sesion = JSON.parse(localStorage.getItem("sesion"));
+  if(!sesion) location.href = "login.html";
 
-    DATA = json;
-    localStorage.setItem("data_cache", JSON.stringify(DATA));
+  let res = await fetch(API_URL);
+  let json = await res.json();
 
-  } catch(e){}
-}
+  DATA = json.recambios || [];
+};
 
-// SCANNER
-async function toggleScanner(){
+// ESCANEAR
+function buscarRecambio(codigo){
 
-  const reader = document.getElementById("reader");
+  RECAMBIO = DATA.find(r => String(r.codigo) === String(codigo));
 
-  if (!scannerActivo) {
-
-    reader.style.display="block";
-
-    scanner = new Html5Qrcode("reader");
-
-    try {
-      await scanner.start(
-        { facingMode: "environment" },
-        { fps: 10 },
-        (txt)=>{
-          codigo.value = txt;
-          buscarNombre();
-          detenerScanner();
-        }
-      );
-
-      scannerActivo = true;
-
-    } catch(e){
-      console.log(e);
-    }
-
-  } else {
-    await detenerScanner();
-  }
-}
-
-async function detenerScanner(){
-
-  if (scanner) {
-    try {
-      await scanner.stop();
-      await scanner.clear();
-    } catch(e){}
-
-    scanner = null;
+  if(!RECAMBIO){
+    sonidoError();
+    vibrar();
+    alert("Código no existe");
+    return;
   }
 
-  document.getElementById("reader").style.display="none";
-  scannerActivo = false;
+  document.getElementById("nombre").value = RECAMBIO.nombre || "";
+
+  sonidoOK();
+  vibrar();
 }
 
-// AUTOCOMPLETE
-codigo.addEventListener("input", buscarNombre);
+// VALIDACIÓN FUERTE DE CANTIDAD
+function getCantidad(){
 
-function buscarNombre(){
-  let r = DATA.recambios.find(x =>
-    x.codigo == codigo.value &&
-    x.activo === "SI"
-  );
+  let val = document.getElementById("cantidad").value;
 
-  nombre.value = r ? r.nombre : "";
+  // ❌ vacío
+  if(!val) return null;
+
+  let num = Number(val);
+
+  // ❌ no número o decimal raro
+  if(isNaN(num) || !Number.isFinite(num)) return null;
+
+  // ❌ negativo o cero
+  if(num <= 0) return null;
+
+  // ❌ decimal → opcional bloquear
+  if(!Number.isInteger(num)){
+    alert("Solo cantidades enteras");
+    return null;
+  }
+
+  return num;
 }
 
 // REGISTRAR
-function registrar(tipo){
+async function registrar(tipo){
 
-  let cant = Number(cantidad.value);
+  if(!RECAMBIO){
+    alert("Escanea un recambio primero");
+    return;
+  }
 
-  if (!cant || cant <= 0)
-    return alert("Cantidad inválida");
+  let cantidad = getCantidad();
 
-  let r = DATA.recambios.find(x => x.codigo == codigo.value);
+  if(!cantidad){
+    alert("Cantidad inválida");
+    return;
+  }
 
-  if (!r) return alert("Código no existe");
+  let stock = Number(RECAMBIO.stock) || 0;
 
-  if (sesion.almacen !== "TODOS" && r.almacen !== sesion.almacen)
-    return alert("Sin acceso a este almacén");
+  // 🔴 CONTROL CRÍTICO SALIDA
+  if(tipo === "salida"){
 
-  if (tipo==="salida" && cant > Number(r.stock))
-    return alert("Stock insuficiente");
+    if(cantidad > stock){
+      alert("No puedes sacar más del stock disponible");
+      sonidoError();
+      vibrar();
+      return;
+    }
+  }
 
-  fetch(API_URL,{
-    method:"POST",
-    body: JSON.stringify({
-      codigo: codigo.value,
-      cantidad: cant,
-      tipo,
-      usuario: sesion.usuario,
-      orden: ot.value
-    })
-  });
+  let sesion = JSON.parse(localStorage.getItem("sesion"));
 
-  // LIMPIAR
-  codigo.value="";
-  nombre.value="";
-  cantidad.value="";
-  ot.value="";
+  let payload = {
+    tipo: tipo,
+    codigo: RECAMBIO.codigo,
+    cantidad: cantidad,
+    usuario: sesion.usuario,
+    orden: document.getElementById("ot").value || ""
+  };
+
+  try{
+
+    await fetch(API_URL, {
+      method:"POST",
+      body: JSON.stringify(payload)
+    });
+
+    sonidoOK();
+    vibrar();
+
+    limpiarCampos();
+
+  }catch(e){
+    alert("Error al guardar");
+    console.error(e);
+  }
 }
 
-// NAV
-function irAlmacen(){ location="almacen.html"; }
-function irHistorico(){ location="historico.html"; }
-function irDashboard(){ location="direccion.html"; }
+// LIMPIAR
+function limpiarCampos(){
+  document.getElementById("cantidad").value = "";
+  document.getElementById("ot").value = "";
+  document.getElementById("nombre").value = "";
+  RECAMBIO = null;
+}
 
-// LOGOUT
-function logout(){
-  localStorage.removeItem("sesion");
-  location="login.html";
+// SONIDOS
+function sonidoOK(){
+  new Audio("ok.mp3").play();
+}
+
+function sonidoError(){
+  new Audio("error.mp3").play();
+}
+
+// VIBRACIÓN
+function vibrar(){
+  if(navigator.vibrate){
+    navigator.vibrate(100);
+  }
 }
 </script>
-
-</body>
-</html>
