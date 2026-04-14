@@ -1,22 +1,180 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="UTF-8">
+<title>Gestión Recambios</title>
+<meta name="viewport" content="width=device-width, initial-scale=1">
+
+<style>
+body {
+  font-family: Arial;
+  margin:0;
+  background:white;
+}
+
+/* FONDO */
+body::before {
+  content:"";
+  position:fixed;
+  width:100%;
+  height:100%;
+  background:url("op.png") center no-repeat;
+  background-size:60%;
+  opacity:0.5;
+  z-index:-1;
+}
+
+/* HEADER */
+.header {
+  text-align:center;
+  padding:15px;
+  background:rgba(255,255,255,0.95);
+  box-shadow:0 2px 8px rgba(0,0,0,0.1);
+}
+
+/* CONTENEDOR */
+.container {
+  padding:15px;
+}
+
+/* BLOQUE ESCÁNER */
+.scanner {
+  background:#e6f0ff;
+  padding:15px;
+  border-radius:12px;
+  margin-bottom:15px;
+}
+
+/* INPUTS */
+input {
+  width:100%;
+  padding:12px;
+  margin:5px 0;
+  border-radius:10px;
+  border:1px solid #ccc;
+  box-sizing:border-box;
+}
+
+/* BOTONES */
+button {
+  padding:14px;
+  border:none;
+  border-radius:12px;
+  font-size:16px;
+  cursor:pointer;
+  box-shadow:0 4px 8px rgba(0,0,0,0.2);
+}
+
+button:hover {
+  opacity:0.9;
+}
+
+/* BOTONES PRINCIPALES */
+.row {
+  display:flex;
+}
+
+.btnEntrada {
+  width:50%;
+  background:green;
+  color:white;
+}
+
+.btnSalida {
+  width:50%;
+  background:red;
+  color:white;
+}
+
+/* NAVEGACIÓN */
+.nav {
+  display:flex;
+  margin-top:10px;
+}
+
+.nav button {
+  width:50%;
+  background:#0E3471;
+  color:white;
+}
+
+/* CERRAR SESIÓN */
+.logout {
+  width:100%;
+  background:#333;
+  color:white;
+  margin-top:20px;
+}
+
+/* CURSOR */
+button:hover {
+  cursor:pointer;
+}
+</style>
+</head>
+
+<body>
+
+<div class="header">
+  <img src="op.png" height="50">
+  <h2>Gestión de recambios OP Mobility Pedrola</h2>
+</div>
+
+<div class="container">
+
+<!-- ESCÁNER -->
+<div class="scanner">
+
+<input id="codigo" placeholder="Escanear código" oninput="controlScan(this.value)">
+<input id="nombre" placeholder="Nombre" readonly>
+<input id="cantidad" type="number" min="1" step="1" placeholder="Cantidad">
+<input id="ot" placeholder="OT">
+
+<div class="row">
+  <button class="btnEntrada" onclick="registrar('entrada')">Añadir material</button>
+  <button class="btnSalida" onclick="registrar('salida')">Sacar material</button>
+</div>
+
+</div>
+
+<!-- NAVEGACIÓN -->
+<div class="nav">
+  <button onclick="go('almacen.html')">Almacén</button>
+  <button onclick="go('historico.html')">Histórico</button>
+</div>
+
+<button class="logout" onclick="logout()">Cerrar sesión</button>
+
+</div>
+
 <script>
 const API_URL = "https://script.google.com/macros/s/AKfycbxyURi4bcmWwsaZ4vdXUUVnr_Xu7y9BRG75tITfdwh-zgSIFpvC2lyKJLTT3XTFNS5XZA/exec";
 
 let DATA = [];
 let RECAMBIO = null;
+let scanTimer = null;
+
+// SESIÓN
+let sesion = JSON.parse(localStorage.getItem("sesion"));
+if(!sesion) location.href="login.html";
 
 // CARGA
 window.onload = async () => {
-
-  let sesion = JSON.parse(localStorage.getItem("sesion"));
-  if(!sesion) location.href = "login.html";
-
   let res = await fetch(API_URL);
   let json = await res.json();
-
   DATA = json.recambios || [];
 };
 
-// ESCANEAR
+// CONTROL ESCANEO (1s)
+function controlScan(val){
+  clearTimeout(scanTimer);
+
+  scanTimer = setTimeout(()=>{
+    buscarRecambio(val);
+  },1000);
+}
+
+// BUSCAR
 function buscarRecambio(codigo){
 
   RECAMBIO = DATA.find(r => String(r.codigo) === String(codigo));
@@ -28,31 +186,25 @@ function buscarRecambio(codigo){
     return;
   }
 
-  document.getElementById("nombre").value = RECAMBIO.nombre || "";
+  nombre.value = RECAMBIO.nombre || "";
 
   sonidoOK();
   vibrar();
 }
 
-// VALIDACIÓN FUERTE DE CANTIDAD
+// VALIDACIÓN
 function getCantidad(){
 
-  let val = document.getElementById("cantidad").value;
+  let val = cantidad.value;
 
-  // ❌ vacío
   if(!val) return null;
 
   let num = Number(val);
 
-  // ❌ no número o decimal raro
-  if(isNaN(num) || !Number.isFinite(num)) return null;
+  if(isNaN(num) || num <= 0) return null;
 
-  // ❌ negativo o cero
-  if(num <= 0) return null;
-
-  // ❌ decimal → opcional bloquear
   if(!Number.isInteger(num)){
-    alert("Solo cantidades enteras");
+    alert("Solo números enteros");
     return null;
   }
 
@@ -67,34 +219,28 @@ async function registrar(tipo){
     return;
   }
 
-  let cantidad = getCantidad();
+  let cant = getCantidad();
 
-  if(!cantidad){
+  if(!cant){
     alert("Cantidad inválida");
     return;
   }
 
   let stock = Number(RECAMBIO.stock) || 0;
 
-  // 🔴 CONTROL CRÍTICO SALIDA
-  if(tipo === "salida"){
-
-    if(cantidad > stock){
-      alert("No puedes sacar más del stock disponible");
-      sonidoError();
-      vibrar();
-      return;
-    }
+  if(tipo === "salida" && cant > stock){
+    alert("Stock insuficiente");
+    sonidoError();
+    vibrar();
+    return;
   }
-
-  let sesion = JSON.parse(localStorage.getItem("sesion"));
 
   let payload = {
     tipo: tipo,
-    codigo: RECAMBIO.codigo,
-    cantidad: cantidad,
+    codigo: RECAMBBIO.codigo,
+    cantidad: cant,
     usuario: sesion.usuario,
-    orden: document.getElementById("ot").value || ""
+    orden: ot.value || ""
   };
 
   try{
@@ -107,7 +253,7 @@ async function registrar(tipo){
     sonidoOK();
     vibrar();
 
-    limpiarCampos();
+    limpiar();
 
   }catch(e){
     alert("Error al guardar");
@@ -116,26 +262,30 @@ async function registrar(tipo){
 }
 
 // LIMPIAR
-function limpiarCampos(){
-  document.getElementById("cantidad").value = "";
-  document.getElementById("ot").value = "";
-  document.getElementById("nombre").value = "";
-  RECAMBIO = null;
+function limpiar(){
+  codigo.value="";
+  nombre.value="";
+  cantidad.value="";
+  ot.value="";
+  RECAMBIO=null;
 }
 
 // SONIDOS
-function sonidoOK(){
-  new Audio("ok.mp3").play();
-}
+function sonidoOK(){ new Audio("ok.mp3").play(); }
+function sonidoError(){ new Audio("error.mp3").play(); }
 
-function sonidoError(){
-  new Audio("error.mp3").play();
-}
-
-// VIBRACIÓN
+// VIBRAR
 function vibrar(){
-  if(navigator.vibrate){
-    navigator.vibrate(100);
-  }
+  if(navigator.vibrate) navigator.vibrate(100);
+}
+
+// NAV
+function go(p){ window.location.href=p; }
+function logout(){
+  localStorage.removeItem("sesion");
+  location.href="login.html";
 }
 </script>
+
+</body>
+</html>
