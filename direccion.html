@@ -41,23 +41,13 @@ body::before {
   border-radius:12px;
   text-align:center;
   cursor:pointer;
+  font-size:14px;
 }
 
 .rojo { background:#ff4d4d; color:white; }
 .azul { background:#0E3471; color:white; }
 .amarillo { background:#fff3b0; }
 .verde { background:#d4edda; }
-
-button {
-  width:100%;
-  padding:10px;
-  margin:5px 0;
-  border:none;
-  border-radius:10px;
-  background:#0E3471;
-  color:white;
-  cursor:pointer;
-}
 
 table {
   width:100%;
@@ -74,14 +64,24 @@ th, td {
 
 td.nombre { text-align:left; }
 
+.seccion { margin-top:15px; }
+
 .filtrosTiempo {
   display:flex;
   gap:5px;
 }
 .filtrosTiempo button { flex:1; }
 
-.seccion { margin-top:15px; }
-
+button {
+  width:100%;
+  padding:10px;
+  margin:5px 0;
+  border:none;
+  border-radius:10px;
+  background:#0E3471;
+  color:white;
+  cursor:pointer;
+}
 </style>
 </head>
 
@@ -94,13 +94,16 @@ td.nombre { text-align:left; }
 
 <div class="container">
 
+<!-- KPIs -->
 <div class="kpis" id="kpis"></div>
 
+<!-- TABLAS -->
 <div id="tablaBajo"></div>
 <div id="tablaAlto"></div>
 
+<!-- CONSUMO -->
 <div class="seccion">
-  <h4>📊 Consumo</h4>
+  <h4>📊 Consumo (Consumibles)</h4>
 
   <div class="filtrosTiempo">
     <button onclick="setFiltro('hoy')">Hoy</button>
@@ -112,8 +115,9 @@ td.nombre { text-align:left; }
   <div id="consumo"></div>
 </div>
 
+<!-- HISTÓRICO -->
 <div class="seccion">
-  <h4>📜 Histórico Consumibles</h4>
+  <h4>📜 Histórico (Consumibles)</h4>
   <table>
     <thead>
       <tr>
@@ -131,35 +135,39 @@ td.nombre { text-align:left; }
 </div>
 
 <script>
-const API_URL="https://script.google.com/macros/s/AKfycbxyURi4bcmWwsaZ4vdXUUVnr_Xu7y9BRG75tITfdwh-zgSIFpvC2lyKJLTT3XTFNS5XZA/exec?v=80";
+const API_URL="https://script.google.com/macros/s/AKfycbxyURi4bcmWwsaZ4vdXUUVnr_Xu7y9BRG75tITfdwh-zgSIFpvC2lyKJLTT3XTFNS5XZA/exec?v=100";
 
-let REC=[];
-let MOV=[];
-let mostrarBajo=false;
-let mostrarAlto=false;
+let TODOS=[], REC=[], MOV=[];
+let mostrarBajo=false, mostrarAlto=false;
 let filtroTiempo="siempre";
+
+// HELPERS
+function n(v){ return Number(v)||0; }
+
+function esConsumible(r){
+  return String(r.almacen||"").trim().toLowerCase()==="consumibles";
+}
 
 window.onload=async()=>{
 
   const res=await fetch(API_URL);
   const json=await res.json();
 
-  REC=(json.recambios||[])
-    .filter(r=>r.almacen==="Consumibles");
-
-  MOV=json.movimientos||[];
+  TODOS = json.recambios || [];
+  REC = TODOS.filter(esConsumible);
+  MOV = json.movimientos || [];
 
   renderKPIs();
   renderHist();
   renderConsumo();
 };
 
-// KPIs
+// 🔴 KPIs (TODOS)
 function renderKPIs(){
 
-  let bajo=REC.filter(r=>Number(r.stock)<Number(r.min));
-  let alto=REC.filter(r=>Number(r.stock)>Number(r.max));
-  let crit=REC.filter(r=>String(r.critico).toUpperCase()==="SI");
+  let bajo=TODOS.filter(r=>n(r.stock)<n(r.min));
+  let alto=TODOS.filter(r=>n(r.stock)>n(r.max));
+  let crit=TODOS.filter(r=>String(r.critico).toUpperCase()==="SI");
 
   kpis.innerHTML=`
     <div class="card rojo" onclick="toggleBajo()">
@@ -175,112 +183,107 @@ function renderKPIs(){
     </div>
 
     <div class="card verde">
-      Total<br><b>${REC.length}</b>
+      Total<br><b>${TODOS.length}</b>
     </div>
   `;
 }
 
-// TOGGLE
-function toggleBajo(){ mostrarBajo=!mostrarBajo; renderTablas(); }
-function toggleAlto(){ mostrarAlto=!mostrarAlto; renderTablas(); }
+// 🟢 TOGGLE TABLAS (Consumibles)
+function toggleBajo(){
+  mostrarBajo=!mostrarBajo;
+  renderTablas();
+}
+
+function toggleAlto(){
+  mostrarAlto=!mostrarAlto;
+  renderTablas();
+}
 
 // TABLAS
 function renderTablas(){
 
-  let bajo=REC.filter(r=>Number(r.stock)<Number(r.min));
-  let alto=REC.filter(r=>Number(r.stock)>Number(r.max));
+  let bajo=REC.filter(r=>n(r.stock)<n(r.min));
+  let alto=REC.filter(r=>n(r.stock)>n(r.max));
 
-  tablaBajo.innerHTML = mostrarBajo ? generarTabla("Bajo mínimo", bajo) : "";
-  tablaAlto.innerHTML = mostrarAlto ? generarTabla("Sobre máximo", alto) : "";
+  tablaBajo.innerHTML = mostrarBajo ? tabla("Bajo mínimo (Consumibles)", bajo) : "";
+  tablaAlto.innerHTML = mostrarAlto ? tabla("Sobre máximo (Consumibles)", alto) : "";
 }
 
-function generarTabla(titulo,data){
+function tabla(titulo,data){
   return `
   <div class="seccion">
     <h4>${titulo}</h4>
     <table>
-      <tr>
-        <th>Código</th><th>Nombre</th><th>Stock</th>
-      </tr>
+      <tr><th>Código</th><th>Nombre</th><th>Stock</th></tr>
       ${data.map(r=>`
         <tr>
           <td>${r.codigo}</td>
           <td class="nombre">${r.nombre}</td>
-          <td>${r.stock}</td>
+          <td>${n(r.stock)}</td>
         </tr>
       `).join("")}
     </table>
   </div>`;
 }
 
-// FILTRO TIEMPO
+// 🔵 FILTRO TIEMPO
 function setFiltro(f){
   filtroTiempo=f;
   renderConsumo();
 }
 
-// CONSUMO
+// 🟣 CONSUMO (Consumibles)
 function renderConsumo(){
 
   let now=new Date();
 
   let filtrado=MOV.filter(m=>{
+    let f=new Date(m.fecha);
 
-    let fecha=new Date(m.fecha);
-
-    if(filtroTiempo==="hoy")
-      return fecha.toDateString()===now.toDateString();
-
-    if(filtroTiempo==="semana")
-      return (now-fecha)<7*86400000;
-
-    if(filtroTiempo==="mes")
-      return (now-fecha)<30*86400000;
+    if(filtroTiempo==="hoy") return f.toDateString()===now.toDateString();
+    if(filtroTiempo==="semana") return (now-f)<7*86400000;
+    if(filtroTiempo==="mes") return (now-f)<30*86400000;
 
     return true;
   });
 
-  // SOLO CONSUMIBLES
   filtrado = filtrado.filter(m =>
     REC.find(r=>r.codigo==m.codigo)
   );
 
-  // AGRUPAR CONSUMO
   let uso={};
 
   filtrado
     .filter(m=>m.tipo==="salida")
     .forEach(m=>{
-      let key=m.codigo;
-      uso[key]=(uso[key]||0)+Number(m.cantidad);
+      uso[m.codigo]=(uso[m.codigo]||0)+n(m.cantidad);
     });
 
-  let lista = Object.entries(uso)
-    .sort((a,b)=>b[1]-a[1]);
+  let lista=Object.entries(uso).sort((a,b)=>b[1]-a[1]);
 
   consumo.innerHTML=`
-    Consumo total: <b>${lista.reduce((a,b)=>a+b[1],0)}</b><br><br>
-    ${lista.map(([cod,val])=>{
-      let nombre = REC.find(r=>r.codigo==cod)?.nombre || "";
-      return `${cod} - ${nombre}: ${val}`;
+    Total: <b>${lista.reduce((a,b)=>a+b[1],0)}</b><br><br>
+    ${lista.map(([c,v])=>{
+      let nom=REC.find(r=>r.codigo==c)?.nombre||"";
+      return `${c} - ${nom}: ${v}`;
     }).join("<br>")}
   `;
 }
 
-// HISTÓRICO
+// 🟤 HISTÓRICO (Consumibles)
 function renderHist(){
 
-  let movConsumibles = MOV.filter(m =>
+  let mov = MOV.filter(m =>
     REC.find(r=>r.codigo==m.codigo)
   );
 
-  hist.innerHTML = movConsumibles.slice(-20).reverse().map(m=>`
+  hist.innerHTML = mov.slice(-20).reverse().map(m=>`
     <tr>
       <td>${m.fecha}</td>
       <td>${m.codigo}</td>
-      <td>${REC.find(r=>r.codigo==m.codigo)?.nombre || ""}</td>
+      <td>${REC.find(r=>r.codigo==m.codigo)?.nombre||""}</td>
       <td>${m.tipo}</td>
-      <td>${m.cantidad}</td>
+      <td>${n(m.cantidad)}</td>
     </tr>
   `).join("");
 }
