@@ -1,59 +1,238 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="UTF-8">
+<title>Histórico</title>
+
+<meta name="viewport" content="width=device-width, initial-scale=1">
+
+<style>
+body {
+  font-family: Arial;
+  margin:0;
+  background:white;
+  color:black;
+}
+
+/* FONDO */
+body::before {
+  content:"";
+  position:fixed;
+  width:100%;
+  height:100%;
+  background:url("op.png") center no-repeat;
+  background-size:60%;
+  opacity:0.3;
+  z-index:-1;
+}
+
+/* HEADER */
+.header {
+  position: sticky;
+  top: 0;
+  z-index: 1000;
+  display:flex;
+  flex-direction:column;
+  align-items:center;
+  background: rgba(255,255,255,0.95);
+  padding:12px;
+  box-shadow:0 2px 8px rgba(0,0,0,0.08);
+}
+
+.header h2 {
+  margin:5px;
+  font-size:20px;
+}
+
+/* CONTENEDOR */
+.container {
+  padding:10px;
+}
+
+/* BOTONES */
+button {
+  padding:10px;
+  border:none;
+  border-radius:8px;
+  cursor:pointer;
+  background:#ddd;
+  margin:5px 0;
+}
+
+/* BUSCADOR */
+#buscador {
+  width:100%;
+  padding:10px;
+  margin:10px 0;
+  box-sizing:border-box;
+}
+
+/* TABLA */
+.table {
+  width:100%;
+  border-collapse:collapse;
+  font-size:13px;
+}
+
+.table th, .table td {
+  padding:8px;
+  border-right:1px solid rgba(0,0,0,0.05);
+  text-align:center;
+}
+
+.table td.nombre {
+  text-align:left;
+}
+
+/* FILAS */
+.table tr {
+  border-bottom:1px solid rgba(0,0,0,0.3);
+}
+
+/* HEADER TABLA */
+.table thead th {
+  position: sticky;
+  top: 120px;
+  background:#f5f5f5;
+  z-index:500;
+  cursor:pointer;
+}
+</style>
+</head>
+
+<body>
+
+<div class="header">
+  <img src="op.png" height="40">
+  <h2>Gestión de recambios OP Mobility Pedrola</h2>
+</div>
+
+<div class="container">
+
+<button onclick="volver()">⬅ Volver</button>
+<button onclick="irAlmacen()">📦 Almacén</button>
+
+<input id="buscador" placeholder="Buscar..." oninput="filtrar()">
+
+<table class="table">
+<thead>
+<tr>
+<th onclick="ordenar('fecha')">Fecha</th>
+<th onclick="ordenar('codigo')">Código</th>
+<th>Nombre</th>
+<th onclick="ordenar('tipo')">Tipo</th>
+<th onclick="ordenar('usuario')">Usuario</th>
+<th onclick="ordenar('orden')">OT</th>
+<th onclick="ordenar('cantidad')">Cantidad</th>
+</tr>
+</thead>
+<tbody id="tabla"></tbody>
+</table>
+
+</div>
+
 <script>
-const API_URL="https://script.google.com/macros/s/AKfycbxyURi4bcmWwsaZ4vdXUUVnr_Xu7y9BRG75tITfdwh-zgSIFpvC2lyKJLTT3XTFNS5XZA/exec?v=400";
+const API_URL = "https://script.google.com/macros/s/AKfycbxyURi4bcmWwsaZ4vdXUUVnr_Xu7y9BRG75tITfdwh-zgSIFpvC2lyKJLTT3XTFNS5XZA/exec?v=20";
 
+// SESIÓN
 let sesion = JSON.parse(localStorage.getItem("sesion"));
-if (!sesion) location="login.html";
+if (!sesion) window.location.href="index.html";
 
-let DATA={};
+sesion.timestamp = Date.now();
+localStorage.setItem("sesion", JSON.stringify(sesion));
 
-window.onload=async()=>{
-  const res=await fetch(API_URL);
-  DATA=await res.json();
-  render();
+let DATA = [];
+let RECAMBIOS = [];
+let FILTRADOS = [];
+let ordenActual = "";
+let asc = true;
+
+window.onload = async () => {
+  try {
+    const res = await fetch(API_URL);
+    const json = await res.json();
+
+    DATA = json.movimientos || [];
+    RECAMBIOS = json.recambios || [];
+
+    mapearDatos();
+    FILTRADOS = DATA;
+    render();
+
+  } catch (e) {
+    alert("Error cargando datos");
+    console.error(e);
+  }
 };
 
-function getAlmacen(obj){
-  return obj.almacen || obj.Almacen || obj["ALMACEN"] || "";
+// MAPEAR NOMBRE
+function mapearDatos() {
+  DATA = DATA.map(m => {
+
+    const r = RECAMBIOS.find(x => x.codigo == m.codigo);
+
+    return {
+      ...m,
+      nombre: r ? r.nombre : "-"
+    };
+  });
 }
 
-function render(){
+// FILTRO
+function filtrar() {
+  let v = buscador.value.toLowerCase();
 
-  let filtro = buscar.value.toLowerCase();
+  FILTRADOS = DATA.filter(m =>
+    String(m.codigo).toLowerCase().includes(v) ||
+    String(m.nombre).toLowerCase().includes(v) ||
+    String(m.usuario).toLowerCase().includes(v) ||
+    String(m.orden).toLowerCase().includes(v)
+  );
 
-  tabla.innerHTML = DATA.movimientos
+  render();
+}
 
-  .filter(m => {
+// ORDENAR
+function ordenar(campo) {
 
-    if (sesion.almacen === "Todos") return true;
+  asc = (ordenActual === campo) ? !asc : true;
+  ordenActual = campo;
 
-    let r = DATA.recambios.find(x => x.codigo == m.codigo);
-    if (!r) return false;
+  FILTRADOS.sort((a,b)=>{
 
-    return getAlmacen(r) === sesion.almacen;
-  })
+    let v1 = a[campo];
+    let v2 = b[campo];
 
-  .filter(m =>
-    (m.codigo || "").includes(filtro) ||
-    (m.orden || "").toLowerCase().includes(filtro)
-  )
+    v1 = isNaN(v1) ? String(v1).toLowerCase() : Number(v1);
+    v2 = isNaN(v2) ? String(v2).toLowerCase() : Number(v2);
 
-  .slice(-200)
+    if (v1 > v2) return asc ? 1 : -1;
+    if (v1 < v2) return asc ? -1 : 1;
+    return 0;
+  });
 
-  .map(m => {
-    let r = DATA.recambios.find(x => x.codigo == m.codigo);
-    let nombre = r ? r.nombre : "";
+  render();
+}
 
-    return `<tr>
-      <td>${m.fecha}</td>
+// RENDER
+function render() {
+  tabla.innerHTML = FILTRADOS.slice().reverse().map(m => `
+    <tr>
+      <td>${m.fecha || ""}</td>
       <td>${m.codigo}</td>
-      <td>${nombre}</td>
+      <td class="nombre">${m.nombre}</td>
       <td>${m.tipo}</td>
       <td>${m.usuario}</td>
-      <td contenteditable="true">${m.orden || ""}</td>
+      <td>${m.orden || ""}</td>
       <td>${m.cantidad}</td>
-    </tr>`;
-  }).join("") || "<tr><td colspan='7'>Sin datos</td></tr>";
+    </tr>
+  `).join("");
 }
 
-buscar.oninput = render;
+// NAV
+function volver(){ window.location.href="index.html"; }
+function irAlmacen(){ window.location.href="almacen.html"; }
 </script>
+
+</body>
+</html>
