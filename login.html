@@ -69,9 +69,7 @@ button {
   box-shadow:0 4px 8px rgba(0,0,0,0.2);
 }
 
-button:hover {
-  opacity:0.9;
-}
+button:hover { opacity:0.9; }
 
 </style>
 </head>
@@ -85,11 +83,10 @@ button:hover {
 
 <div class="container">
 
-<!-- 🔥 FORM PARA ACTIVAR ENTER -->
 <form class="form" onsubmit="login(event)">
 
 <input id="usuario" placeholder="Usuario" autocomplete="username">
-<input id="password" type="password" placeholder="Contraseña" autocomplete="current-password">
+<input id="pin" type="password" placeholder="PIN" autocomplete="current-password">
 
 <button type="submit">Entrar</button>
 
@@ -100,17 +97,15 @@ button:hover {
 <script>
 const API_URL = "https://script.google.com/macros/s/AKfycbxyURi4bcmWwsaZ4vdXUUVnr_Xu7y9BRG75tITfdwh-zgSIFpvC2lyKJLTT3XTFNS5XZA/exec";
 
-// LOGIN
 async function login(e){
 
-  // 🔥 evita recarga del form
   if(e) e.preventDefault();
 
   let u = usuario.value.trim().toLowerCase();
-  let p = password.value.trim();
+  let p = pin.value.trim();
 
   if(!u || !p){
-    alert("Introduce usuario y contraseña");
+    alert("Introduce usuario y PIN");
     return;
   }
 
@@ -119,15 +114,13 @@ async function login(e){
     let res = await fetch(API_URL);
     let json = await res.json();
 
-    console.log("Usuarios cargados:", json.usuarios);
-
     let user = (json.usuarios || []).find(x =>
       String(x.usuario).trim().toLowerCase() === u &&
-      String(x.password).trim() === p
+      String(x.pin).trim() === p
     );
 
     if(!user){
-      alert("Credenciales incorrectas");
+      alert("PIN o usuario incorrecto");
       return;
     }
 
@@ -138,9 +131,9 @@ async function login(e){
 
     window.location.href = "index.html";
 
-  }catch(e){
+  }catch(err){
     alert("Error conexión con el servidor");
-    console.error(e);
+    console.error(err);
   }
 }
 </script>
