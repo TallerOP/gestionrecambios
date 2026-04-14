@@ -35,88 +35,79 @@ body::before {
   box-shadow:0 2px 8px rgba(0,0,0,0.1);
 }
 
-.header h2 {
-  margin:5px 0 0 0;
-  font-size:18px;
-}
-
 /* CONTENEDOR */
-.container {
-  padding:12px;
-}
+.container { padding:10px; }
 
 /* BOTONES */
 button {
   width:100%;
   padding:12px;
-  margin:6px 0;
+  margin:5px 0;
   border:none;
   border-radius:10px;
   background:#0E3471;
   color:white;
   cursor:pointer;
   box-shadow:0 4px 0 rgba(0,0,0,0.2);
-  transition:0.2s;
 }
-
-button:hover { filter:brightness(1.1); }
 
 button:active {
   transform:translateY(2px);
   box-shadow:0 2px 0 rgba(0,0,0,0.2);
 }
 
-/* NAV */
-.nav {
-  display:flex;
-  gap:6px;
-}
-
-.nav button { flex:1; }
-
-/* KPI GRID */
+/* GRID KPI */
 .kpis {
   display:grid;
   grid-template-columns:1fr 1fr;
   gap:10px;
-  margin-top:10px;
 }
 
-/* TARJETAS */
+/* CARDS */
 .card {
   padding:20px;
   border-radius:12px;
   text-align:center;
   font-size:14px;
   cursor:pointer;
-  box-shadow:0 4px 10px rgba(0,0,0,0.1);
-  transition:0.2s;
 }
 
-.card:hover {
-  transform:scale(1.03);
-}
-
-/* COLORES */
 .rojo { background:#ff4d4d; color:white; }
 .azul { background:#0E3471; color:white; }
 .amarillo { background:#fff3b0; }
 .verde { background:#d4edda; }
 
-/* LISTA ALERTAS */
-.lista {
-  margin-top:15px;
-  background:#f9f9f9;
-  border-radius:10px;
-  padding:10px;
-}
-
-.item {
-  padding:8px;
-  border-bottom:1px solid rgba(0,0,0,0.2);
+/* TABLAS */
+table {
+  width:100%;
+  border-collapse:collapse;
+  margin-top:10px;
   font-size:13px;
 }
 
+th, td {
+  padding:8px;
+  border-bottom:1px solid rgba(0,0,0,0.2);
+  text-align:center;
+}
+
+td.nombre { text-align:left; }
+
+/* SECCIONES */
+.seccion {
+  margin-top:15px;
+}
+
+/* FILTROS TIEMPO */
+.filtrosTiempo {
+  display:flex;
+  gap:5px;
+}
+
+.filtrosTiempo button {
+  flex:1;
+  font-size:12px;
+}
 </style>
 </head>
 
@@ -124,88 +115,189 @@ button:active {
 
 <div class="header">
   <img src="op.png" height="40">
-  <h2>Gestión de recambios OP Mobility Pedrola</h2>
+  <h3>Gestión de recambios OP Mobility Pedrola</h3>
 </div>
 
 <div class="container">
 
-<!-- NAV -->
-<div class="nav">
-  <button onclick="irInicio()">Inicio</button>
-  <button onclick="irAlmacen()">Almacén</button>
-  <button onclick="irHistorico()">Histórico</button>
-</div>
-
 <!-- KPIs -->
 <div class="kpis" id="kpis"></div>
 
-<!-- ALERTAS -->
-<div class="lista" id="alertas"></div>
+<!-- CONSUMO -->
+<div class="seccion">
+  <h4>📊 Consumo</h4>
+
+  <div class="filtrosTiempo">
+    <button onclick="setFiltroTiempo('hoy')">Hoy</button>
+    <button onclick="setFiltroTiempo('semana')">Semana</button>
+    <button onclick="setFiltroTiempo('mes')">Mes</button>
+    <button onclick="setFiltroTiempo('siempre')">Siempre</button>
+  </div>
+
+  <div id="consumo"></div>
+</div>
+
+<!-- TABLAS -->
+<div id="tablaBajo"></div>
+<div id="tablaAlto"></div>
+
+<!-- HISTÓRICO -->
+<div class="seccion">
+  <h4>📜 Histórico Consumibles</h4>
+  <table>
+    <thead>
+      <tr>
+        <th>Fecha</th>
+        <th>Código</th>
+        <th>Nombre</th>
+        <th>Tipo</th>
+        <th>Cantidad</th>
+      </tr>
+    </thead>
+    <tbody id="hist"></tbody>
+  </table>
+</div>
 
 </div>
 
 <script>
-const API_URL="https://script.google.com/macros/s/AKfycbxyURi4bcmWwsaZ4vdXUUVnr_Xu7y9BRG75tITfdwh-zgSIFpvC2lyKJLTT3XTFNS5XZA/exec?v=60";
+const API_URL="https://script.google.com/macros/s/AKfycbxyURi4bcmWwsaZ4vdXUUVnr_Xu7y9BRG75tITfdwh-zgSIFpvC2lyKJLTT3XTFNS5XZA/exec?v=70";
 
-// 🔐 CONTROL ACCESO
-let sesion = JSON.parse(localStorage.getItem("sesion"));
+let DATA=[], MOV=[];
+let mostrarBajo=false;
+let mostrarAlto=false;
+let filtroTiempo="siempre";
 
-if(!["Alberto","Jose Luis"].includes(sesion?.usuario)){
-  window.location.href="index.html";
-}
+window.onload=async()=>{
 
-window.onload = async ()=>{
+  const res=await fetch(API_URL);
+  const json=await res.json();
 
-  const res = await fetch(API_URL);
-  const json = await res.json();
+  DATA=(json.recambios||[]).filter(r=>r.almacen==="Consumibles");
+  MOV=json.movimientos||[];
 
-  const rec = (json.recambios||[]).filter(r=>String(r.activo).toUpperCase()==="SI");
+  renderKPIs();
+  renderHist();
+  renderConsumo();
+};
 
-  let bajo = rec.filter(r => Number(r.stock) < Number(r.min));
-  let alto = rec.filter(r => Number(r.stock) > Number(r.max));
-  let criticos = rec.filter(r => String(r.critico).toUpperCase()==="SI");
+// KPIs
+function renderKPIs(){
 
-  // KPIs
-  kpis.innerHTML = `
-    <div class="card rojo" onclick="goFiltro('bajo')">
+  let bajo=DATA.filter(r=>r.stock<r.min);
+  let alto=DATA.filter(r=>r.stock>r.max);
+  let crit=DATA.filter(r=>r.critico==="SI");
+
+  kpis.innerHTML=`
+    <div class="card rojo" onclick="toggleBajo()">
       Bajo mínimo<br><b>${bajo.length}</b>
     </div>
 
-    <div class="card azul" onclick="goFiltro('alto')">
-      Sobre stock<br><b>${alto.length}</b>
+    <div class="card azul" onclick="toggleAlto()">
+      Sobre máximo<br><b>${alto.length}</b>
     </div>
 
     <div class="card amarillo">
-      Críticos<br><b>${criticos.length}</b>
+      Críticos<br><b>${crit.length}</b>
     </div>
 
     <div class="card verde">
-      Activos<br><b>${rec.length}</b>
+      Total<br><b>${DATA.length}</b>
     </div>
   `;
-
-  // ALERTAS TOP
-  alertas.innerHTML = `
-    <b>⚠️ Recambios críticos / bajo mínimo:</b><br><br>
-    ${
-      bajo.slice(0,5).map(r=>
-        `<div class="item">${r.codigo} - ${r.nombre} (${r.stock})</div>`
-      ).join("")
-    }
-  `;
-};
-
-// 🔥 REDIRECCIÓN CON FILTRO
-function goFiltro(tipo){
-  localStorage.setItem("filtroEstado", tipo);
-  window.location.href="almacen.html";
 }
 
-// NAV
-function irInicio(){ window.location.href="index.html"; }
-function irAlmacen(){ window.location.href="almacen.html"; }
-function irHistorico(){ window.location.href="historico.html"; }
+// TOGGLE
+function toggleBajo(){
+  mostrarBajo=!mostrarBajo;
+  renderTablas();
+}
 
+function toggleAlto(){
+  mostrarAlto=!mostrarAlto;
+  renderTablas();
+}
+
+// TABLAS
+function renderTablas(){
+
+  let bajo=DATA.filter(r=>r.stock<r.min);
+  let alto=DATA.filter(r=>r.stock>r.max);
+
+  tablaBajo.innerHTML = mostrarBajo ? generarTabla("Bajo mínimo", bajo) : "";
+  tablaAlto.innerHTML = mostrarAlto ? generarTabla("Sobre máximo", alto) : "";
+}
+
+function generarTabla(titulo,data){
+  return `
+  <div class="seccion">
+    <h4>${titulo}</h4>
+    <table>
+      <tr>
+        <th>Código</th><th>Nombre</th><th>Stock</th>
+      </tr>
+      ${data.map(r=>`
+        <tr>
+          <td>${r.codigo}</td>
+          <td class="nombre">${r.nombre}</td>
+          <td>${r.stock}</td>
+        </tr>
+      `).join("")}
+    </table>
+  </div>`;
+}
+
+// CONSUMO
+function setFiltroTiempo(f){
+  filtroTiempo=f;
+  renderConsumo();
+}
+
+function renderConsumo(){
+
+  let now=new Date();
+
+  let filtrado=MOV.filter(m=>{
+
+    let fecha=new Date(m.fecha);
+
+    if(filtroTiempo==="hoy")
+      return fecha.toDateString()===now.toDateString();
+
+    if(filtroTiempo==="semana")
+      return (now-fecha)<7*24*60*60*1000;
+
+    if(filtroTiempo==="mes")
+      return (now-fecha)<30*24*60*60*1000;
+
+    return true;
+  });
+
+  let total=filtrado
+    .filter(m=>m.tipo==="salida")
+    .reduce((a,b)=>a+Number(b.cantidad),0);
+
+  consumo.innerHTML=`Consumo total: <b>${total}</b>`;
+}
+
+// HISTÓRICO
+function renderHist(){
+
+  let movConsumibles = MOV.filter(m=>{
+    let r = DATA.find(x=>x.codigo==m.codigo);
+    return r;
+  });
+
+  hist.innerHTML = movConsumibles.slice(-20).reverse().map(m=>`
+    <tr>
+      <td>${m.fecha}</td>
+      <td>${m.codigo}</td>
+      <td>${DATA.find(r=>r.codigo==m.codigo)?.nombre || ""}</td>
+      <td>${m.tipo}</td>
+      <td>${m.cantidad}</td>
+    </tr>
+  `).join("");
+}
 </script>
 
 </body>
