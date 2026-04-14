@@ -20,12 +20,9 @@ body::before {
 }
 
 .header {
-  position:sticky;
-  top:0;
-  background:white;
   text-align:center;
-  padding:12px;
-  box-shadow:0 2px 6px rgba(0,0,0,0.1);
+  padding:15px;
+  background:#eef5ff;
 }
 
 .container { padding:10px; }
@@ -34,27 +31,17 @@ button {
   width:100%;
   padding:12px;
   margin:6px 0;
-  border:none;
   border-radius:10px;
+  border:none;
   background:#0E3471;
   color:white;
   cursor:pointer;
   box-shadow:0 4px 0 rgba(0,0,0,0.2);
-  transition:0.2s;
 }
 
 button:hover { filter:brightness(1.1); }
 
-button:active {
-  transform:translateY(2px);
-  box-shadow:0 2px 0 rgba(0,0,0,0.2);
-}
-
-.nav {
-  display:flex;
-  gap:6px;
-}
-
+.nav { display:flex; gap:6px; }
 .nav button { flex:1; }
 
 .kpis {
@@ -66,18 +53,12 @@ button:active {
 .card {
   padding:15px;
   border-radius:10px;
-  background:#f5f5f5;
   text-align:center;
 }
 
 .rojo { background:#ffb3b3; }
 .azul { background:#0E3471; color:white; }
 .amarillo { background:#fff3b0; }
-
-.item {
-  padding:8px;
-  border-bottom:1px solid rgba(0,0,0,0.3);
-}
 
 </style>
 </head>
@@ -97,14 +78,30 @@ button:active {
   <button onclick="location='historico.html'">Histórico</button>
 </div>
 
-<div class="kpis">
-  <div class="card">KPIs</div>
-</div>
+<div class="kpis" id="kpis"></div>
 
 </div>
 
 <script>
-// TU JS ORIGINAL SIN CAMBIOS
+const API_URL="https://script.google.com/macros/s/AKfycbxyURi4bcmWwsaZ4vdXUUVnr_Xu7y9BRG75tITfdwh-zgSIFpvC2lyKJLTT3XTFNS5XZA/exec?v=200";
+
+let sesion=JSON.parse(localStorage.getItem("sesion"));
+if(!["Alberto","Jose Luis"].includes(sesion?.usuario)) location="index.html";
+
+window.onload=async()=>{
+  const res=await fetch(API_URL);
+  const DATA=await res.json();
+
+  let bajo=DATA.recambios.filter(r=>r.stock<r.min).length;
+  let alto=DATA.recambios.filter(r=>r.stock>r.max).length;
+  let activos=DATA.recambios.filter(r=>r.activo==="SI").length;
+
+  kpis.innerHTML=`
+    <div class="card rojo">Bajo mínimo<br>${bajo}</div>
+    <div class="card azul">Sobre stock<br>${alto}</div>
+    <div class="card amarillo">Activos<br>${activos}</div>
+  `;
+};
 </script>
 
 </body>
