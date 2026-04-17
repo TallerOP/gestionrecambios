@@ -157,6 +157,10 @@ let RECAMBIO = null;
 let scanner = null;
 let scanning = false;
 
+// control de lectura estable
+let codigoDetectado = null;
+let timerScan = null;
+
 // SESIÓN
 let sesion = JSON.parse(localStorage.getItem("sesion"));
 if(!sesion) location.href="login.html";
@@ -199,8 +203,21 @@ function iniciarScanner(){
     },
     (decodedText) => {
 
-      buscarRecambio(decodedText);
-      cerrarScanner();
+      // si cambia código → reiniciar temporizador
+      if(decodedText !== codigoDetectado){
+        codigoDetectado = decodedText;
+
+        clearTimeout(timerScan);
+
+        timerScan = setTimeout(() => {
+
+          buscarRecambio(decodedText);
+          cerrarScanner();
+
+          codigoDetectado = null;
+
+        }, 2000); // ⏱️ 2 segundos
+      }
     }
   );
 
