@@ -32,35 +32,38 @@ body::before {
 
 .container { padding:15px; }
 
-/* BOTONES */
+/* BOTONES UNIFICADOS */
 button {
-  padding:12px;
+  padding:14px;
   border:none;
   border-radius:12px;
   cursor:pointer;
   background:#0E3471;
   color:white;
+  font-size:15px;
   box-shadow:0 3px 6px rgba(0,0,0,0.2);
 }
 
-button:hover { opacity:0.9; }
-
-/* GRID */
-.grid {
-  display:flex;
-  justify-content:space-between;
-  gap:2%;
-  margin-top:10px;
+button:hover {
+  opacity:0.9;
 }
 
-.grid button {
-  width:49.5%;
+/* FILAS DE BOTONES (igual que consumibles) */
+.row {
+  display:flex;
+  justify-content:space-between;
+  margin-top:8px;
+  gap:6px;
+}
+
+.row button {
+  flex:1;
 }
 
 /* BLOQUES */
 .bloque {
-  margin-top:15px;
   display:none;
+  margin-top:10px;
 }
 
 .bloque.active {
@@ -72,6 +75,7 @@ table {
   width:100%;
   border-collapse:collapse;
   margin-top:10px;
+  font-size:14px;
 }
 
 td, th {
@@ -84,6 +88,7 @@ td, th {
 
 .bajo { background:#ffb3b3; }
 .alto { background:#0E3471; color:white; }
+
 </style>
 </head>
 
@@ -98,7 +103,7 @@ td, th {
 
 <button onclick="volver()">⬅ Volver</button>
 
-<div class="grid">
+<div class="row">
   <button onclick="toggle('bajo')">Bajo mínimo</button>
   <button onclick="toggle('alto')">Sobre máximo</button>
 </div>
@@ -108,7 +113,7 @@ td, th {
 
 <h3>Consumo</h3>
 
-<div class="grid">
+<div class="row">
   <button onclick="setTiempo('hoy')">Hoy</button>
   <button onclick="setTiempo('semana')">7 días</button>
   <button onclick="setTiempo('mes')">30 días</button>
@@ -144,23 +149,18 @@ window.onload = async ()=>{
 
 // TOGGLE
 function toggle(id){
-  let el = document.getElementById(id);
-  el.classList.toggle("active");
+  document.getElementById(id).classList.toggle("active");
 }
 
 // BAJO
 function renderBajo(){
-
   let lista = RECAMBIOS.filter(r => Number(r.stock) < Number(r.min));
-
   document.getElementById("bajo").innerHTML = tabla(lista, "bajo");
 }
 
 // ALTO
 function renderAlto(){
-
   let lista = RECAMBIOS.filter(r => Number(r.stock) > Number(r.max));
-
   document.getElementById("alto").innerHTML = tabla(lista, "alto");
 }
 
@@ -213,7 +213,6 @@ function renderConsumo(){
     return true;
   });
 
-  // solo CARROS
   filtrados = filtrados.filter(m => {
     let r = RECAMBIOS.find(x => x.codigo == m.codigo);
     return r;
