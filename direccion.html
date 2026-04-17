@@ -12,21 +12,17 @@ body {
   background:white;
 }
 
-/* FONDO CENTRADO */
 body::before {
   content:"";
   position:fixed;
-  top:0;
-  left:0;
   width:100%;
   height:100%;
-  background:url("op.png") no-repeat center center;
+  background:url("op.png") center no-repeat;
   background-size:60%;
-  opacity:0.3;
+  opacity:0.5;
   z-index:-1;
 }
 
-/* HEADER */
 .header {
   text-align:center;
   padding:15px;
@@ -34,41 +30,44 @@ body::before {
   box-shadow:0 2px 8px rgba(0,0,0,0.1);
 }
 
-/* CONTENEDOR */
 .container {
   padding:15px;
 }
 
-/* BOTONES GRID */
-.botones {
+/* BOTONES */
+.grid {
   display:flex;
-  gap:10px;
+  justify-content:space-between;
+  gap:2%;
+  margin-top:20px;
 }
 
-/* BOTONES */
-button {
-  flex:1;
-  padding:25px;
+.grid button {
+  width:32.75%;
+  height:120px;
+  font-size:18px;
   border:none;
   border-radius:12px;
-  font-size:18px;
+  cursor:pointer;
   background:#0E3471;
   color:white;
-  cursor:pointer;
-  box-shadow:0 4px 8px rgba(0,0,0,0.2);
+  box-shadow:0 3px 6px rgba(0,0,0,0.2);
 }
 
-button:hover {
+.grid button:hover {
   opacity:0.9;
 }
 
-/* BOTÓN VOLVER */
 .volver {
   margin-top:20px;
   width:100%;
-  background:#555;
+  padding:12px;
+  background:#333;
+  color:white;
+  border:none;
+  border-radius:12px;
+  cursor:pointer;
 }
-
 </style>
 </head>
 
@@ -76,28 +75,23 @@ button:hover {
 
 <div class="header">
   <img src="op.png" height="50">
-  <h2>Estadísticas</h2>
+  <h2>Gestión App</h2>
 </div>
 
 <div class="container">
 
-<div class="botones">
-  <button onclick="go('recambios.html')">📦 Recambios</button>
-  <button onclick="go('consumibles.html')">🧰 Consumibles</button>
+<div class="grid">
+  <button onclick="go('recambios.html')">Recambios</button>
+  <button onclick="go('consumibles.html')">Consumibles</button>
+  <button onclick="go('carros.html')">Carros</button>
 </div>
 
-<button class="volver" onclick="volver()">⬅ Volver al inicio</button>
+<button class="volver" onclick="go('index.html')">⬅ Volver</button>
 
 </div>
 
 <script>
-function go(p){
-  window.location.href = p;
-}
-
-function volver(){
-  window.location.href = "index.html";
-}
+function go(p){ window.location.href = p; }
 </script>
 
 </body>
