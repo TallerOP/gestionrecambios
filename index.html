@@ -2,53 +2,93 @@
 <html>
 <head>
 <meta charset="UTF-8">
-<title>Gestión Recambios</title>
+<title>Inicio</title>
 <meta name="viewport" content="width=device-width, initial-scale=1">
 
 <script src="https://unpkg.com/html5-qrcode"></script>
 
 <style>
-body { font-family: Arial; margin:0; }
+body {
+  font-family: Arial;
+  margin:0;
+  background:white;
+}
+body::before {
+  content:"";
+  position:fixed;
+  width:100%;
+  height:100%;
+  background:url("op.png") center no-repeat;
+  background-size:60%;
+  opacity:0.5;
+  z-index:-1;
+}
+
+.header {
+  text-align:center;
+  padding:12px;
+  background:rgba(255,255,255,0.95);
+  box-shadow:0 2px 8px rgba(0,0,0,0.1);
+}
+
 .container { padding:15px; }
 
 input {
   width:100%;
   padding:12px;
-  margin:5px 0;
-  border-radius:10px;
+  margin:6px 0;
+  border-radius:12px;
   border:1px solid #ccc;
 }
 
 button {
+  padding:14px;
   border:none;
   border-radius:12px;
-  padding:14px;
   cursor:pointer;
+  box-shadow:0 3px 6px rgba(0,0,0,0.2);
 }
+button:hover { opacity:0.9; }
 
-.row { display:flex; justify-content:space-between; gap:1%; }
+.row { display:flex; gap:6px; }
+.row button { width:49.5%; }
 
-.btn {
-  width:49.5%;
-  color:white;
-}
-
-.add { background:green; }
-.remove { background:red; }
-
-.nav { display:flex; justify-content:space-between; gap:1%; }
+.nav { display:flex; gap:6px; margin-top:8px; }
 .nav button { width:32.75%; background:#0E3471; color:white; }
 
-#scanner { display:none; }
+.add { background:green; color:white; }
+.remove { background:red; color:white; }
+
+.logout {
+  width:100%;
+  background:#333;
+  color:white;
+  margin-top:12px;
+}
+
+#scannerBox {
+  max-height:0;
+  overflow:hidden;
+  transition:0.3s;
+}
+#scannerBox.active { max-height:400px; }
 </style>
 </head>
 
 <body>
 
+<div class="header">
+  <img src="op.png" height="50">
+  <h3>Gestión de recambios OP Mobility</h3>
+</div>
+
 <div class="container">
 
-<button onclick="toggleScanner()">📷 Escanear código</button>
-<div id="scanner"></div>
+<button onclick="toggleScanner()" style="width:30%">📷 Escanear</button>
+
+<div id="scannerBox">
+  <div id="reader"></div>
+</div>
 
 <input id="codigo" placeholder="Código" readonly>
 <input id="nombre" placeholder="Nombre" readonly>
@@ -56,8 +96,8 @@ button {
 <input id="ot" placeholder="OT">
 
 <div class="row">
-  <button class="btn add" onclick="mov('entrada')">Añadir material</button>
-  <button class="btn remove" onclick="mov('salida')">Sacar material</button>
+  <button class="add" onclick="mov('entrada')">Añadir material</button>
+  <button class="remove" onclick="mov('salida')">Sacar material</button>
 </div>
 
 <div class="nav">
@@ -66,51 +106,55 @@ button {
   <button id="gestionBtn" style="display:none;" onclick="go('direccion.html')">Gestión</button>
 </div>
 
-<button onclick="logout()">Cerrar sesión</button>
+<button class="logout" onclick="logout()">Cerrar sesión</button>
 
 </div>
 
 <script>
 const API_URL="https://script.google.com/macros/s/AKfycbxyURi4bcmWwsaZ4vdXUUVnr_Xu7y9BRG75tITfdwh-zgSIFpvC2lyKJLTT3XTFNS5XZA/exec?v=40";
 
-// sesión
+/* SESIÓN */
 let sesion = JSON.parse(localStorage.getItem("sesion"));
-if (!sesion) location.href="login.html";
+if(!sesion) location.href="login.html";
 
-// botón gestión solo admins
-if (["Alberto","Jose Luis"].includes(sesion.nombre)){
+if(["Alberto","Jose Luis"].includes(sesion.nombre)){
   document.getElementById("gestionBtn").style.display="block";
 }
 
-let DATA=[];
+/* CACHE */
+const CACHE_KEY="app_cache";
+const CACHE_TIME=60000;
 
-// CACHE
 async function getData(){
-  let c=JSON.parse(localStorage.getItem("cache"));
-  if(c && Date.now()-c.t<60000) return c.d;
+  let c=JSON.parse(localStorage.getItem(CACHE_KEY));
+  let now=Date.now();
+
+  if(c && (now-c.t<CACHE_TIME)) return c.d;
 
   let r=await fetch(API_URL);
   let d=await r.json();
 
-  localStorage.setItem("cache",JSON.stringify({t:Date.now(),d}));
+  localStorage.setItem(CACHE_KEY,JSON.stringify({t:now,d}));
   return d;
 }
+
+let DATA=[];
 
 document.addEventListener("DOMContentLoaded", async ()=>{
   let json=await getData();
   DATA=json.recambios||[];
 });
 
-// SCANNER
+/* SCANNER */
 let scanner, timer, last=null;
 
 function toggleScanner(){
-  let div=document.getElementById("scanner");
+  let box=document.getElementById("scannerBox");
 
-  if(div.style.display==="none"){
-    div.style.display="block";
+  if(!box.classList.contains("active")){
+    box.classList.add("active");
 
-    scanner = new Html5Qrcode("scanner");
+    scanner = new Html5Qrcode("reader");
 
     scanner.start({ facingMode:"environment" }, { fps:10 }, txt=>{
       if(txt!==last){
@@ -129,21 +173,18 @@ function toggleScanner(){
 }
 
 function cerrarScanner(){
-  document.getElementById("scanner").style.display="none";
+  document.getElementById("scannerBox").classList.remove("active");
   if(scanner) scanner.stop();
 }
 
-// BUSCAR
 function buscar(c){
-  let r = DATA.find(x=>String(x.codigo)==c);
-
+  let r=DATA.find(x=>String(x.codigo)==c);
   if(!r) return alert("Código no existe");
 
-  codigo.value = r.codigo;
-  nombre.value = r.nombre;
+  codigo.value=r.codigo;
+  nombre.value=r.nombre;
 }
 
-// MOVIMIENTO
 async function mov(tipo){
   let cod=codigo.value;
   let cant=Number(cantidad.value);
@@ -151,9 +192,9 @@ async function mov(tipo){
   if(!cod) return alert("Escanea primero");
   if(!cant || cant<=0) return alert("Cantidad inválida");
 
-  let r = DATA.find(x=>String(x.codigo)==cod);
+  let r=DATA.find(x=>String(x.codigo)==cod);
 
-  if(tipo==="salida" && cant > Number(r.stock))
+  if(tipo==="salida" && cant>Number(r.stock))
     return alert("Stock insuficiente");
 
   await fetch(API_URL,{
@@ -170,7 +211,7 @@ async function mov(tipo){
   alert("Movimiento registrado");
 }
 
-// NAV
+/* NAV */
 function go(p){ location.href=p; }
 function logout(){ localStorage.clear(); location.href="login.html"; }
 </script>
