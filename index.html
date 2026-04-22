@@ -2,7 +2,7 @@
 <html>
 <head>
 <meta charset="UTF-8">
-<title>Inicio</title>
+<title>Gestión Recambios</title>
 <meta name="viewport" content="width=device-width, initial-scale=1">
 
 <script src="https://unpkg.com/html5-qrcode"></script>
@@ -13,6 +13,7 @@ body {
   margin:0;
   background:white;
 }
+
 body::before {
   content:"";
   position:fixed;
@@ -26,7 +27,7 @@ body::before {
 
 .header {
   text-align:center;
-  padding:12px;
+  padding:15px;
   background:rgba(255,255,255,0.95);
   box-shadow:0 2px 8px rgba(0,0,0,0.1);
 }
@@ -36,42 +37,79 @@ body::before {
 input {
   width:100%;
   padding:12px;
-  margin:6px 0;
-  border-radius:12px;
+  margin:4px 0;
+  border-radius:10px;
   border:1px solid #ccc;
 }
 
+/* BOTONES */
 button {
   padding:14px;
   border:none;
   border-radius:12px;
+  font-size:16px;
   cursor:pointer;
   box-shadow:0 3px 6px rgba(0,0,0,0.2);
 }
+
 button:hover { opacity:0.9; }
 
-.row { display:flex; gap:6px; }
-.row button { width:49.5%; }
+.btnScan {
+  display:block;
+  width:30%;
+  margin:0 auto 10px auto;
+  background:#0E3471;
+  color:white;
+}
 
-.nav { display:flex; gap:6px; margin-top:8px; }
-.nav button { width:32.75%; background:#0E3471; color:white; }
+/* FILAS */
+.row {
+  display:flex;
+  justify-content:space-between;
+  margin-top:8px;
+}
 
-.add { background:green; color:white; }
-.remove { background:red; color:white; }
+.btnEntrada, .btnSalida {
+  width:49.5%;
+  color:white;
+}
+
+.btnEntrada { background:green; }
+.btnSalida { background:red; }
+
+.nav {
+  display:flex;
+  justify-content:space-between;
+  margin-top:8px;
+}
+
+.nav button {
+  width:32.75%;
+  background:#0E3471;
+  color:white;
+}
 
 .logout {
   width:100%;
   background:#333;
   color:white;
-  margin-top:12px;
+  margin-top:15px;
 }
 
+/* SCANNER */
 #scannerBox {
   max-height:0;
   overflow:hidden;
-  transition:0.3s;
+  transition:all 0.3s ease;
 }
-#scannerBox.active { max-height:400px; }
+
+#scannerBox.active {
+  max-height:400px;
+}
+
+#reader {
+  width:100%;
+}
 </style>
 </head>
 
@@ -79,31 +117,32 @@ button:hover { opacity:0.9; }
 
 <div class="header">
   <img src="op.png" height="50">
-  <h3>Gestión de recambios OP Mobility</h3>
+  <h2>Gestión de recambios OP Mobility Pedrola</h2>
 </div>
 
 <div class="container">
 
-<button onclick="toggleScanner()" style="width:30%">📷 Escanear</button>
+<button class="btnScan" onclick="toggleScanner()">📷 Escanear código</button>
 
 <div id="scannerBox">
   <div id="reader"></div>
+  <input id="codigoManual" placeholder="Código manual" onkeypress="manualEnter(event)">
 </div>
 
 <input id="codigo" placeholder="Código" readonly>
 <input id="nombre" placeholder="Nombre" readonly>
-<input id="cantidad" type="number" placeholder="Cantidad">
+<input id="cantidad" type="number" min="1" step="1" placeholder="Cantidad">
 <input id="ot" placeholder="OT">
 
 <div class="row">
-  <button class="add" onclick="mov('entrada')">Añadir material</button>
-  <button class="remove" onclick="mov('salida')">Sacar material</button>
+  <button class="btnEntrada" onclick="registrar('entrada')">Añadir material</button>
+  <button class="btnSalida" onclick="registrar('salida')">Sacar material</button>
 </div>
 
 <div class="nav">
   <button onclick="go('almacen.html')">Almacén</button>
   <button onclick="go('historico.html')">Histórico</button>
-  <button id="gestionBtn" style="display:none;" onclick="go('direccion.html')">Gestión</button>
+  <button id="btnStats" onclick="go('direccion.html')" style="display:none">Estadísticas</button>
 </div>
 
 <button class="logout" onclick="logout()">Cerrar sesión</button>
@@ -111,109 +150,162 @@ button:hover { opacity:0.9; }
 </div>
 
 <script>
-const API_URL="https://script.google.com/macros/s/AKfycbxyURi4bcmWwsaZ4vdXUUVnr_Xu7y9BRG75tITfdwh-zgSIFpvC2lyKJLTT3XTFNS5XZA/exec?v=40";
+const API_URL = "https://script.google.com/macros/s/AKfycbxyURi4bcmWwsaZ4vdXUUVnr_Xu7y9BRG75tITfdwh-zgSIFpvC2lyKJLTT3XTFNS5XZA/exec";
 
-/* SESIÓN */
+let DATA = [];
+let RECAMBIO = null;
+let scanner = null;
+let scanning = false;
+
+// control de lectura estable
+let codigoDetectado = null;
+let timerScan = null;
+
+// SESIÓN
 let sesion = JSON.parse(localStorage.getItem("sesion"));
 if(!sesion) location.href="login.html";
 
-if(["Alberto","Jose Luis"].includes(sesion.nombre)){
-  document.getElementById("gestionBtn").style.display="block";
+if(["alberto","jose luis"].includes(sesion.usuario.toLowerCase())){
+  document.getElementById("btnStats").style.display="block";
 }
 
-/* CACHE */
-const CACHE_KEY="app_cache";
-const CACHE_TIME=60000;
+// LOAD
+window.onload = async ()=>{
+  let res = await fetch(API_URL);
+  let json = await res.json();
+  DATA = json.recambios || [];
+};
 
-async function getData(){
-  let c=JSON.parse(localStorage.getItem(CACHE_KEY));
-  let now=Date.now();
-
-  if(c && (now-c.t<CACHE_TIME)) return c.d;
-
-  let r=await fetch(API_URL);
-  let d=await r.json();
-
-  localStorage.setItem(CACHE_KEY,JSON.stringify({t:now,d}));
-  return d;
-}
-
-let DATA=[];
-
-document.addEventListener("DOMContentLoaded", async ()=>{
-  let json=await getData();
-  DATA=json.recambios||[];
-});
-
-/* SCANNER */
-let scanner, timer, last=null;
-
+// TOGGLE
 function toggleScanner(){
-  let box=document.getElementById("scannerBox");
+  let box = document.getElementById("scannerBox");
 
   if(!box.classList.contains("active")){
     box.classList.add("active");
+    iniciarScanner();
+  } else {
+    cerrarScanner();
+  }
+}
 
-    scanner = new Html5Qrcode("reader");
+// SCANNER
+function iniciarScanner(){
 
-    scanner.start({ facingMode:"environment" }, { fps:10 }, txt=>{
-      if(txt!==last){
-        last=txt;
-        clearTimeout(timer);
+  if(scanning) return;
 
-        timer=setTimeout(()=>{
-          buscar(txt);
+  scanner = new Html5Qrcode("reader");
+
+  scanner.start(
+    { facingMode: "environment" },
+    {
+      fps: 10,
+      qrbox: { width: 250, height: 120 }
+    },
+    (decodedText) => {
+
+      // si cambia código → reiniciar temporizador
+      if(decodedText !== codigoDetectado){
+        codigoDetectado = decodedText;
+
+        clearTimeout(timerScan);
+
+        timerScan = setTimeout(() => {
+
+          buscarRecambio(decodedText);
           cerrarScanner();
-          last=null;
-        },2000);
-      }
-    });
 
-  } else cerrarScanner();
+          codigoDetectado = null;
+
+        }, 2000); // ⏱️ 2 segundos
+      }
+    }
+  );
+
+  scanning = true;
 }
 
 function cerrarScanner(){
   document.getElementById("scannerBox").classList.remove("active");
-  if(scanner) scanner.stop();
+
+  if(scanner){
+    scanner.stop().then(()=>{
+      scanner.clear();
+      scanning = false;
+    });
+  }
 }
 
-function buscar(c){
-  let r=DATA.find(x=>String(x.codigo)==c);
-  if(!r) return alert("Código no existe");
-
-  codigo.value=r.codigo;
-  nombre.value=r.nombre;
+// MANUAL
+function manualEnter(e){
+  if(e.key==="Enter"){
+    buscarRecambio(e.target.value);
+    cerrarScanner();
+  }
 }
 
-async function mov(tipo){
-  let cod=codigo.value;
-  let cant=Number(cantidad.value);
+// BUSCAR
+function buscarRecambio(codigoLeido){
 
-  if(!cod) return alert("Escanea primero");
-  if(!cant || cant<=0) return alert("Cantidad inválida");
+  let codigo = String(codigoLeido).trim();
 
-  let r=DATA.find(x=>String(x.codigo)==cod);
+  RECAMBIO = DATA.find(r => String(r.codigo).trim() === codigo);
 
-  if(tipo==="salida" && cant>Number(r.stock))
-    return alert("Stock insuficiente");
+  if(!RECAMBIO){
+    alert("Código no existe");
+    return;
+  }
+
+  codigo.value = RECAMBIO.codigo;
+  nombre.value = RECAMBIO.nombre;
+}
+
+// VALIDACIÓN
+function getCantidad(){
+  let n = Number(cantidad.value);
+  if(!n || n<=0 || !Number.isInteger(n)) return null;
+  return n;
+}
+
+// REGISTRAR
+async function registrar(tipo){
+
+  if(!RECAMBIO) return alert("Escanea primero");
+
+  let cant = getCantidad();
+  if(!cant) return alert("Cantidad inválida");
+
+  let stock = Number(RECAMBIO.stock)||0;
+  if(tipo==="salida" && cant>stock) return alert("Stock insuficiente");
 
   await fetch(API_URL,{
     method:"POST",
     body:JSON.stringify({
       tipo,
-      codigo:cod,
+      codigo:RECAMBIO.codigo,
       cantidad:cant,
-      orden:ot.value,
-      usuario:sesion.nombre
+      usuario:sesion.usuario,
+      orden:ot.value||""
     })
   });
 
   alert("Movimiento registrado");
+  limpiar();
 }
 
-/* NAV */
+function limpiar(){
+  codigo.value="";
+  nombre.value="";
+  cantidad.value="";
+  ot.value="";
+  RECAMBIO=null;
+}
+
 function go(p){ location.href=p; }
-function logout(){ localStorage.clear(); location.href="login.html"; }
+
+function logout(){
+  localStorage.removeItem("sesion");
+  location.href="login.html";
+}
 </script>
 
 </body>

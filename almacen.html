@@ -3,6 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <title>Almacén</title>
+
 <meta name="viewport" content="width=device-width, initial-scale=1">
 
 <style>
@@ -10,8 +11,10 @@ body {
   font-family: Arial;
   margin:0;
   background:white;
+  color:black;
 }
 
+/* FONDO */
 body::before {
   content:"";
   position:fixed;
@@ -19,21 +22,32 @@ body::before {
   height:100%;
   background:url("op.png") center no-repeat;
   background-size:60%;
-  opacity:0.5;
+  opacity:0.3;
   z-index:-1;
 }
 
+/* HEADER */
 .header {
-  position:sticky;
-  top:0;
-  z-index:1000;
-  text-align:center;
-  padding:12px;
-  background:rgba(255,255,255,0.95);
+  position: sticky;
+  top: 0;
+  z-index: 1000;
+  display:flex;
+  flex-direction:column;
+  align-items:center;
+  background: rgba(255,255,255,0.95);
+  padding:15px;
   box-shadow:0 2px 8px rgba(0,0,0,0.1);
 }
 
-.container { padding:10px; }
+.header h3 {
+  margin:5px 0 0 0;
+  font-size:18px;
+}
+
+/* CONTENEDOR */
+.container {
+  padding:10px;
+}
 
 /* INPUTS */
 input, select {
@@ -42,28 +56,41 @@ input, select {
   margin:6px 0;
   border-radius:10px;
   border:1px solid #ccc;
+  box-sizing:border-box;
+  font-size:14px;
 }
 
 /* BOTONES */
 button {
+  width:100%;
   padding:12px;
+  margin:6px 0;
   border:none;
-  border-radius:12px;
-  cursor:pointer;
+  border-radius:10px;
   background:#0E3471;
   color:white;
-  box-shadow:0 3px 6px rgba(0,0,0,0.2);
+  font-size:14px;
+  cursor:pointer;
+  box-shadow:0 4px 0 rgba(0,0,0,0.2);
+  transition:0.2s;
 }
 
-button:hover { opacity:0.9; }
+button:hover {
+  filter:brightness(1.1);
+}
 
-.top-buttons {
+button:active {
+  transform:translateY(2px);
+  box-shadow:0 2px 0 rgba(0,0,0,0.2);
+}
+
+/* BOTONES SUPERIORES */
+.nav {
   display:flex;
   gap:6px;
-  margin-bottom:8px;
 }
 
-.top-buttons button {
+.nav button {
   flex:1;
 }
 
@@ -71,37 +98,49 @@ button:hover { opacity:0.9; }
 .filtros {
   display:flex;
   gap:6px;
-  margin:10px 0;
+  margin-bottom:10px;
 }
 
 .filtros button {
   flex:1;
+  font-size:12px;
+  padding:10px;
 }
 
 /* TABLA */
-table {
+.table {
   width:100%;
   border-collapse:collapse;
-  font-size:14px;
+  font-size:13px;
 }
 
-th, td {
-  padding:8px;
+.table th, .table td {
+  padding:10px;
   text-align:center;
 }
 
-thead th {
-  position:sticky;
-  top:160px;
+.table td.nombre {
+  text-align:left;
+}
+
+.table tr {
+  border-bottom:1px solid rgba(0,0,0,0.2);
+}
+
+/* CABECERA FIJA */
+.table thead th {
+  position: sticky;
+  top: 190px;
   background:#f5f5f5;
+  z-index:500;
   cursor:pointer;
 }
 
-.nombre { text-align:left; }
-
+/* COLORES */
 .bajo { background:#ffb3b3; }
 .alto { background:#0E3471; color:white; }
 .critico { background:#fff3b0; font-weight:bold; }
+
 </style>
 </head>
 
@@ -109,19 +148,21 @@ thead th {
 
 <div class="header">
   <img src="op.png" height="40">
-  <h3>Almacén</h3>
+  <h3>Gestión de recambios OP Mobility Pedrola</h3>
 </div>
 
 <div class="container">
 
-<div class="top-buttons">
+<div class="nav">
   <button onclick="volver()">⬅ Inicio</button>
   <button onclick="irHistorico()">📊 Histórico</button>
 </div>
 
 <input id="buscador" placeholder="Buscar..." oninput="filtrar()">
 
-<select id="filtroAlmacen" onchange="filtrar()"></select>
+<select id="filtroAlmacen" onchange="filtrar()">
+  <option value="">Todos los almacenes</option>
+</select>
 
 <div class="filtros">
   <button onclick="setEstado('todos')">Todos</button>
@@ -130,7 +171,7 @@ thead th {
   <button onclick="setEstado('critico')">Críticos</button>
 </div>
 
-<table>
+<table class="table">
 <thead>
 <tr>
 <th onclick="ordenar('codigo')">Código</th>
@@ -138,8 +179,8 @@ thead th {
 <th onclick="ordenar('almacen')">Almacén</th>
 <th onclick="ordenar('ubicacion')">Ubicación</th>
 <th onclick="ordenar('stock')">Stock</th>
-<th onclick="ordenar('min')">Min</th>
-<th onclick="ordenar('max')">Max</th>
+<th onclick="ordenar('min')">Mín</th>
+<th onclick="ordenar('max')">Máx</th>
 <th onclick="ordenar('critico')">Crítico</th>
 </tr>
 </thead>
@@ -151,114 +192,117 @@ thead th {
 <script>
 const API_URL = "https://script.google.com/macros/s/AKfycbxyURi4bcmWwsaZ4vdXUUVnr_Xu7y9BRG75tITfdwh-zgSIFpvC2lyKJLTT3XTFNS5XZA/exec?v=40";
 
-/* CACHE */
-const CACHE_KEY="data_cache";
-const CACHE_TIME=60000;
+// SESIÓN
+let sesion = JSON.parse(localStorage.getItem("sesion"));
+if (!sesion) window.location.href="index.html";
 
-async function getData(){
-  let cache=JSON.parse(localStorage.getItem(CACHE_KEY));
-  let now=Date.now();
+let DATA = [];
+let FILTRADOS = [];
+let filtroEstado = "todos";
+let ordenActual = "";
+let asc = true;
 
-  if(cache && (now-cache.timestamp<CACHE_TIME)) return cache.data;
+window.onload = async () => {
+  const res = await fetch(API_URL);
+  const json = await res.json();
 
-  let res=await fetch(API_URL);
-  let data=await res.json();
-
-  localStorage.setItem(CACHE_KEY,JSON.stringify({
-    timestamp:now,
-    data:data
-  }));
-
-  return data;
-}
-
-let DATA=[], FILTRADOS=[];
-let estado="todos";
-let ordenCampo="";
-let asc=true;
-
-/* LOAD */
-document.addEventListener("DOMContentLoaded", async ()=>{
-  let json=await getData();
-
-  DATA=(json.recambios||[]).filter(r=>
-    String(r.activo).toUpperCase()==="SI"
+  DATA = (json.recambios || []).filter(r =>
+    String(r.activo).toUpperCase() === "SI"
   );
 
   cargarAlmacenes();
   filtrar();
-});
+};
 
-/* ALMACENES */
-function cargarAlmacenes(){
-  let lista=[...new Set(DATA.map(r=>r.almacen).filter(a=>a))];
+// CARGAR ALMACENES
+function cargarAlmacenes() {
+  let lista = [...new Set(DATA.map(r => r.almacen).filter(a=>a))];
 
-  filtroAlmacen.innerHTML =
-    `<option value="">Todos los almacenes</option>` +
-    lista.map(a=>`<option value="${a}">${a}</option>`).join("");
+  filtroAlmacen.innerHTML = `
+    <option value="">Todos los almacenes</option>
+    ${lista.map(a=>`<option value="${a}">${a}</option>`).join("")}
+  `;
 }
 
-/* FILTROS */
-function setEstado(e){ estado=e; filtrar(); }
+// FILTROS
+function setEstado(e){
+  filtroEstado = e;
+  filtrar();
+}
 
-function filtrar(){
-  let v=buscador.value.toLowerCase();
-  let alm=filtroAlmacen.value;
+function filtrar() {
+  let v = buscador.value.toLowerCase();
+  let almacenSel = filtroAlmacen.value;
 
-  FILTRADOS = DATA.filter(r=>{
-    let stock=+r.stock||0;
-    let min=+r.min||0;
-    let max=+r.max||0;
+  FILTRADOS = DATA.filter(r => {
 
-    let match =
-      String(r.codigo).includes(v) ||
+    let stock = Number(r.stock)||0;
+    let min = Number(r.min)||0;
+    let max = Number(r.max)||0;
+
+    let matchBusqueda =
+      String(r.codigo).toLowerCase().includes(v) ||
       String(r.nombre).toLowerCase().includes(v);
 
-    if(alm && r.almacen!==alm) return false;
+    let matchAlmacen =
+      !almacenSel || r.almacen == almacenSel;
 
-    if(estado==="bajo") match &= stock<min;
-    if(estado==="alto") match &= stock>max;
-    if(estado==="critico") match &= String(r.critico).toUpperCase()==="SI";
+    let matchEstado = true;
 
-    return match;
+    if (filtroEstado === "bajo")
+      matchEstado = stock < min;
+
+    if (filtroEstado === "alto")
+      matchEstado = stock > max;
+
+    if (filtroEstado === "critico")
+      matchEstado = String(r.critico).toUpperCase() === "SI";
+
+    return matchBusqueda && matchAlmacen && matchEstado;
   });
 
   render();
 }
 
-/* ORDEN */
-function ordenar(c){
-  asc = (ordenCampo===c)?!asc:true;
-  ordenCampo=c;
+// ORDEN
+function ordenar(campo){
+  asc = (ordenActual === campo) ? !asc : true;
+  ordenActual = campo;
 
   FILTRADOS.sort((a,b)=>{
-    let v1=a[c]||"", v2=b[c]||"";
-    v1=isNaN(v1)?v1.toLowerCase():+v1;
-    v2=isNaN(v2)?v2.toLowerCase():+v2;
-    return (v1>v2?1:-1)*(asc?1:-1);
+    let v1 = a[campo] || "";
+    let v2 = b[campo] || "";
+
+    v1 = isNaN(v1) ? v1.toLowerCase() : Number(v1);
+    v2 = isNaN(v2) ? v2.toLowerCase() : Number(v2);
+
+    return (v1 > v2 ? 1 : -1) * (asc ? 1 : -1);
   });
 
   render();
 }
 
-/* RENDER */
+// RENDER
 function render(){
   tabla.innerHTML = FILTRADOS.map(r=>{
-    let stock=+r.stock||0;
-    let min=+r.min||0;
-    let max=+r.max||0;
 
-    let clase =
-      stock<min?"bajo":
-      stock>max?"alto":
-      String(r.critico).toUpperCase()==="SI"?"critico":"";
+    let stock = Number(r.stock)||0;
+    let min = Number(r.min)||0;
+    let max = Number(r.max)||0;
+
+    let ubicacion = r["Ubicación"] || r.ubicacion || "";
+
+    let clase="";
+    if(stock < min) clase="bajo";
+    else if(stock > max) clase="alto";
+    else if(String(r.critico).toUpperCase()==="SI") clase="critico";
 
     return `
     <tr class="${clase}">
       <td>${r.codigo}</td>
       <td class="nombre">${r.nombre}</td>
       <td>${r.almacen||""}</td>
-      <td>${r["Ubicación"]||""}</td>
+      <td>${ubicacion}</td>
       <td>${stock}</td>
       <td>${min}</td>
       <td>${max}</td>
@@ -267,9 +311,10 @@ function render(){
   }).join("");
 }
 
-/* NAV */
-function volver(){ location.href="index.html"; }
-function irHistorico(){ location.href="historico.html"; }
+// NAV
+function volver(){ window.location.href="index.html"; }
+function irHistorico(){ window.location.href="historico.html"; }
+
 </script>
 
 </body>
