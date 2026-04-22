@@ -6,38 +6,68 @@
 <meta name="viewport" content="width=device-width, initial-scale=1">
 
 <style>
-body { font-family: Arial; margin:0; background:white; }
+body {
+  font-family: Arial;
+  margin:0;
+  background:white;
+}
+
 body::before {
-  content:""; position:fixed; width:100%; height:100%;
+  content:"";
+  position:fixed;
+  width:100%;
+  height:100%;
   background:url("op.png") center no-repeat;
-  background-size:60%; opacity:0.5; z-index:-1;
+  background-size:60%;
+  opacity:0.5;
+  z-index:-1;
 }
 
 .header {
-  position:sticky; top:0;
-  text-align:center; padding:12px;
+  position:sticky;
+  top:0;
+  z-index:1000;
+  text-align:center;
+  padding:12px;
   background:rgba(255,255,255,0.95);
+  box-shadow:0 2px 8px rgba(0,0,0,0.1);
 }
 
 .container { padding:10px; }
 
 input {
-  width:100%; padding:10px; margin:5px 0;
-  border-radius:10px; border:1px solid #ccc;
+  width:100%;
+  padding:12px;
+  margin:6px 0;
+  border-radius:10px;
+  border:1px solid #ccc;
 }
 
 button {
-  padding:10px; border:none; border-radius:10px;
-  background:#0E3471; color:white;
+  padding:12px;
+  border:none;
+  border-radius:12px;
+  background:#0E3471;
+  color:white;
+  cursor:pointer;
 }
 
-table { width:100%; border-collapse:collapse; }
+table {
+  width:100%;
+  border-collapse:collapse;
+  font-size:14px;
+}
 
-th, td { padding:8px; text-align:center; }
+th, td {
+  padding:8px;
+  text-align:center;
+}
 
 thead th {
-  position:sticky; top:120px;
-  background:#f5f5f5; cursor:pointer;
+  position:sticky;
+  top:120px;
+  background:#f5f5f5;
+  cursor:pointer;
 }
 
 .nombre { text-align:left; }
@@ -77,17 +107,19 @@ thead th {
 <script>
 const API_URL="https://script.google.com/macros/s/AKfycbxyURi4bcmWwsaZ4vdXUUVnr_Xu7y9BRG75tITfdwh-zgSIFpvC2lyKJLTT3XTFNS5XZA/exec?v=40";
 
-// CACHE
+/* CACHE */
 const CACHE_KEY="data_cache";
 const CACHE_TIME=60000;
 
 async function getData(){
   let c=JSON.parse(localStorage.getItem(CACHE_KEY));
   let now=Date.now();
+
   if(c && now-c.timestamp<CACHE_TIME) return c.data;
 
   let r=await fetch(API_URL);
   let d=await r.json();
+
   localStorage.setItem(CACHE_KEY,JSON.stringify({timestamp:now,data:d}));
   return d;
 }
@@ -95,6 +127,7 @@ async function getData(){
 let DATA=[], RECAMBIOS=[], FILTRADOS=[];
 let ordenCampo="", asc=true;
 
+/* LOAD */
 document.addEventListener("DOMContentLoaded", async ()=>{
   let json=await getData();
 
@@ -106,6 +139,7 @@ document.addEventListener("DOMContentLoaded", async ()=>{
   render();
 });
 
+/* MAPEAR */
 function mapear(){
   DATA = DATA.map(m=>{
     let r = RECAMBIOS.find(x=>x.codigo==m.codigo);
@@ -113,21 +147,23 @@ function mapear(){
   });
 }
 
+/* FILTRO */
 function filtrar(){
   let v=buscador.value.toLowerCase();
 
   FILTRADOS = DATA.filter(m =>
-    (m.codigo+"").includes(v) ||
-    (m.nombre+"").toLowerCase().includes(v) ||
-    (m.usuario+"").toLowerCase().includes(v) ||
-    (m.orden+"").toLowerCase().includes(v)
+    String(m.codigo).includes(v) ||
+    String(m.nombre).toLowerCase().includes(v) ||
+    String(m.usuario).toLowerCase().includes(v) ||
+    String(m.orden).toLowerCase().includes(v)
   );
 
   render();
 }
 
+/* ORDEN */
 function ordenar(c){
-  asc = ordenCampo===c ? !asc : true;
+  asc = (ordenCampo===c)?!asc:true;
   ordenCampo=c;
 
   FILTRADOS.sort((a,b)=>{
@@ -140,6 +176,7 @@ function ordenar(c){
   render();
 }
 
+/* RENDER */
 function render(){
   tabla.innerHTML = FILTRADOS.slice().reverse().map(m=>`
     <tr>
@@ -154,7 +191,8 @@ function render(){
   `).join("");
 }
 
-function volver(){ location.href="index.html"; }
+/* NAV */
+function volver(){ location.href="almacen.html"; }
 </script>
 
 </body>

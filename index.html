@@ -8,56 +8,47 @@
 <script src="https://unpkg.com/html5-qrcode"></script>
 
 <style>
-body { font-family: Arial; margin:0; background:white; }
-body::before {
-  content:""; position:fixed; width:100%; height:100%;
-  background:url("op.png") center no-repeat;
-  background-size:60%; opacity:0.5; z-index:-1;
-}
-.header { text-align:center; padding:15px; background:rgba(255,255,255,0.95); }
+body { font-family: Arial; margin:0; }
 .container { padding:15px; }
 
 input {
-  width:100%; padding:12px; margin:4px 0;
-  border-radius:10px; border:1px solid #ccc;
+  width:100%;
+  padding:12px;
+  margin:5px 0;
+  border-radius:10px;
+  border:1px solid #ccc;
 }
 
 button {
-  padding:14px; border:none; border-radius:12px;
-  cursor:pointer; box-shadow:0 3px 6px rgba(0,0,0,0.2);
+  border:none;
+  border-radius:12px;
+  padding:14px;
+  cursor:pointer;
 }
-button:hover { opacity:0.9; }
 
-.btnScan { width:30%; margin:auto; display:block; background:#0E3471; color:white; }
+.row { display:flex; justify-content:space-between; gap:1%; }
 
-.row { display:flex; justify-content:space-between; margin-top:8px; }
-.btnEntrada { width:49.5%; background:green; color:white; }
-.btnSalida { width:49.5%; background:red; color:white; }
+.btn {
+  width:49.5%;
+  color:white;
+}
 
-.nav { display:flex; justify-content:space-between; margin-top:8px; }
+.add { background:green; }
+.remove { background:red; }
+
+.nav { display:flex; justify-content:space-between; gap:1%; }
 .nav button { width:32.75%; background:#0E3471; color:white; }
 
-.logout { width:100%; background:#333; color:white; margin-top:15px; }
-
-#scannerBox { max-height:0; overflow:hidden; transition:0.3s; }
-#scannerBox.active { max-height:400px; }
+#scanner { display:none; }
 </style>
 </head>
 
 <body>
 
-<div class="header">
-  <img src="op.png" height="50">
-  <h2>Gestión de recambios</h2>
-</div>
-
 <div class="container">
 
-<button class="btnScan" onclick="toggleScanner()">📷 Escanear</button>
-
-<div id="scannerBox">
-  <div id="reader"></div>
-</div>
+<button onclick="toggleScanner()">📷 Escanear código</button>
+<div id="scanner"></div>
 
 <input id="codigo" placeholder="Código" readonly>
 <input id="nombre" placeholder="Nombre" readonly>
@@ -65,76 +56,71 @@ button:hover { opacity:0.9; }
 <input id="ot" placeholder="OT">
 
 <div class="row">
-  <button class="btnEntrada" onclick="registrar('entrada')">Añadir</button>
-  <button class="btnSalida" onclick="registrar('salida')">Sacar</button>
+  <button class="btn add" onclick="mov('entrada')">Añadir material</button>
+  <button class="btn remove" onclick="mov('salida')">Sacar material</button>
 </div>
 
 <div class="nav">
   <button onclick="go('almacen.html')">Almacén</button>
   <button onclick="go('historico.html')">Histórico</button>
+  <button id="gestionBtn" style="display:none;" onclick="go('direccion.html')">Gestión</button>
 </div>
 
-<button class="logout" onclick="logout()">Cerrar sesión</button>
+<button onclick="logout()">Cerrar sesión</button>
 
 </div>
 
 <script>
-const API_URL = "https://script.google.com/macros/s/AKfycbxyURi4bcmWwsaZ4vdXUUVnr_Xu7y9BRG75tITfdwh-zgSIFpvC2lyKJLTT3XTFNS5XZA/exec?v=40";
+const API_URL="https://script.google.com/macros/s/AKfycbxyURi4bcmWwsaZ4vdXUUVnr_Xu7y9BRG75tITfdwh-zgSIFpvC2lyKJLTT3XTFNS5XZA/exec?v=40";
 
-const CACHE_KEY = "data_cache";
-const CACHE_TIME = 60000;
+// sesión
+let sesion = JSON.parse(localStorage.getItem("sesion"));
+if (!sesion) location.href="login.html";
 
-async function getData() {
-  let cache = JSON.parse(localStorage.getItem(CACHE_KEY));
-  let now = Date.now();
-
-  if (cache && (now - cache.timestamp < CACHE_TIME)) {
-    return cache.data;
-  }
-
-  let res = await fetch(API_URL);
-  let data = await res.json();
-
-  localStorage.setItem(CACHE_KEY, JSON.stringify({
-    timestamp: now,
-    data: data
-  }));
-
-  return data;
+// botón gestión solo admins
+if (["Alberto","Jose Luis"].includes(sesion.nombre)){
+  document.getElementById("gestionBtn").style.display="block";
 }
 
-// precarga
-getData();
+let DATA=[];
 
-let DATA = [];
-let RECAMBIO = null;
+// CACHE
+async function getData(){
+  let c=JSON.parse(localStorage.getItem("cache"));
+  if(c && Date.now()-c.t<60000) return c.d;
 
-// LOAD
+  let r=await fetch(API_URL);
+  let d=await r.json();
+
+  localStorage.setItem("cache",JSON.stringify({t:Date.now(),d}));
+  return d;
+}
+
 document.addEventListener("DOMContentLoaded", async ()=>{
-  let json = await getData();
-  DATA = json.recambios || [];
+  let json=await getData();
+  DATA=json.recambios||[];
 });
 
-// SCANNER (con retardo 2s)
-let scanner, codigoDetectado=null, timer;
+// SCANNER
+let scanner, timer, last=null;
 
 function toggleScanner(){
-  let box = document.getElementById("scannerBox");
+  let div=document.getElementById("scanner");
 
-  if(!box.classList.contains("active")){
-    box.classList.add("active");
+  if(div.style.display==="none"){
+    div.style.display="block";
 
-    scanner = new Html5Qrcode("reader");
+    scanner = new Html5Qrcode("scanner");
 
     scanner.start({ facingMode:"environment" }, { fps:10 }, txt=>{
-      if(txt !== codigoDetectado){
-        codigoDetectado = txt;
+      if(txt!==last){
+        last=txt;
         clearTimeout(timer);
 
-        timer = setTimeout(()=>{
+        timer=setTimeout(()=>{
           buscar(txt);
           cerrarScanner();
-          codigoDetectado=null;
+          last=null;
         },2000);
       }
     });
@@ -143,34 +129,45 @@ function toggleScanner(){
 }
 
 function cerrarScanner(){
-  document.getElementById("scannerBox").classList.remove("active");
+  document.getElementById("scanner").style.display="none";
   if(scanner) scanner.stop();
 }
 
 // BUSCAR
 function buscar(c){
-  RECAMBIO = DATA.find(r=>String(r.codigo)==c);
-  if(!RECAMBIO) return alert("No existe");
+  let r = DATA.find(x=>String(x.codigo)==c);
 
-  codigo.value = RECAMBIO.codigo;
-  nombre.value = RECAMBIO.nombre;
+  if(!r) return alert("Código no existe");
+
+  codigo.value = r.codigo;
+  nombre.value = r.nombre;
 }
 
-// REGISTRO
-async function registrar(tipo){
-  if(!RECAMBIO) return alert("Escanea primero");
+// MOVIMIENTO
+async function mov(tipo){
+  let cod=codigo.value;
+  let cant=Number(cantidad.value);
 
-  let cant = Number(cantidad.value);
+  if(!cod) return alert("Escanea primero");
   if(!cant || cant<=0) return alert("Cantidad inválida");
 
-  if(tipo==="salida" && cant > Number(RECAMBIO.stock))
+  let r = DATA.find(x=>String(x.codigo)==cod);
+
+  if(tipo==="salida" && cant > Number(r.stock))
     return alert("Stock insuficiente");
 
-  await fetch(API_URL,{method:"POST",body:JSON.stringify({
-    tipo, codigo:RECAMBIO.codigo, cantidad:cant, orden:ot.value
-  })});
+  await fetch(API_URL,{
+    method:"POST",
+    body:JSON.stringify({
+      tipo,
+      codigo:cod,
+      cantidad:cant,
+      orden:ot.value,
+      usuario:sesion.nombre
+    })
+  });
 
-  alert("OK");
+  alert("Movimiento registrado");
 }
 
 // NAV

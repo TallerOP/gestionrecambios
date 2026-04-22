@@ -6,54 +6,102 @@
 <meta name="viewport" content="width=device-width, initial-scale=1">
 
 <style>
-body { font-family: Arial; margin:0; background:white; }
+body {
+  font-family: Arial;
+  margin:0;
+  background:white;
+}
+
 body::before {
-  content:""; position:fixed; width:100%; height:100%;
+  content:"";
+  position:fixed;
+  width:100%;
+  height:100%;
   background:url("op.png") center no-repeat;
-  background-size:60%; opacity:0.5; z-index:-1;
+  background-size:60%;
+  opacity:0.5;
+  z-index:-1;
 }
 
 .header {
-  position:sticky; top:0; z-index:1000;
-  text-align:center; padding:12px;
+  position:sticky;
+  top:0;
+  z-index:1000;
+  text-align:center;
+  padding:12px;
   background:rgba(255,255,255,0.95);
+  box-shadow:0 2px 8px rgba(0,0,0,0.1);
 }
 
 .container { padding:10px; }
 
+/* INPUTS */
 input, select {
-  width:100%; padding:10px; margin:5px 0;
-  border-radius:10px; border:1px solid #ccc;
+  width:100%;
+  padding:12px;
+  margin:6px 0;
+  border-radius:10px;
+  border:1px solid #ccc;
 }
 
+/* BOTONES */
 button {
-  padding:10px; border:none; border-radius:10px;
-  cursor:pointer; background:#0E3471; color:white;
+  padding:12px;
+  border:none;
+  border-radius:12px;
+  cursor:pointer;
+  background:#0E3471;
+  color:white;
+  box-shadow:0 3px 6px rgba(0,0,0,0.2);
 }
 
 button:hover { opacity:0.9; }
 
-.filtros { display:flex; gap:5px; margin:10px 0; }
-.filtros button { flex:1; }
+.top-buttons {
+  display:flex;
+  gap:6px;
+  margin-bottom:8px;
+}
 
+.top-buttons button {
+  flex:1;
+}
+
+/* FILTROS */
+.filtros {
+  display:flex;
+  gap:6px;
+  margin:10px 0;
+}
+
+.filtros button {
+  flex:1;
+}
+
+/* TABLA */
 table {
-  width:100%; border-collapse:collapse;
+  width:100%;
+  border-collapse:collapse;
+  font-size:14px;
 }
 
 th, td {
-  padding:8px; text-align:center;
+  padding:8px;
+  text-align:center;
 }
 
 thead th {
-  position:sticky; top:160px;
-  background:#f5f5f5; cursor:pointer;
+  position:sticky;
+  top:160px;
+  background:#f5f5f5;
+  cursor:pointer;
 }
 
 .nombre { text-align:left; }
 
 .bajo { background:#ffb3b3; }
 .alto { background:#0E3471; color:white; }
-.critico { background:#fff3b0; }
+.critico { background:#fff3b0; font-weight:bold; }
 </style>
 </head>
 
@@ -66,7 +114,10 @@ thead th {
 
 <div class="container">
 
-<button onclick="volver()">⬅ Volver</button>
+<div class="top-buttons">
+  <button onclick="volver()">⬅ Inicio</button>
+  <button onclick="irHistorico()">📊 Histórico</button>
+</div>
 
 <input id="buscador" placeholder="Buscar..." oninput="filtrar()">
 
@@ -74,9 +125,9 @@ thead th {
 
 <div class="filtros">
   <button onclick="setEstado('todos')">Todos</button>
-  <button onclick="setEstado('bajo')">Bajo</button>
-  <button onclick="setEstado('alto')">Alto</button>
-  <button onclick="setEstado('critico')">Crítico</button>
+  <button onclick="setEstado('bajo')">Bajo stock</button>
+  <button onclick="setEstado('alto')">Alto stock</button>
+  <button onclick="setEstado('critico')">Críticos</button>
 </div>
 
 <table>
@@ -100,44 +151,54 @@ thead th {
 <script>
 const API_URL = "https://script.google.com/macros/s/AKfycbxyURi4bcmWwsaZ4vdXUUVnr_Xu7y9BRG75tITfdwh-zgSIFpvC2lyKJLTT3XTFNS5XZA/exec?v=40";
 
-// CACHE
-const CACHE_KEY = "data_cache";
-const CACHE_TIME = 60000;
+/* CACHE */
+const CACHE_KEY="data_cache";
+const CACHE_TIME=60000;
 
-async function getData() {
-  let cache = JSON.parse(localStorage.getItem(CACHE_KEY));
-  let now = Date.now();
+async function getData(){
+  let cache=JSON.parse(localStorage.getItem(CACHE_KEY));
+  let now=Date.now();
 
-  if (cache && (now - cache.timestamp < CACHE_TIME)) return cache.data;
+  if(cache && (now-cache.timestamp<CACHE_TIME)) return cache.data;
 
-  let res = await fetch(API_URL);
-  let data = await res.json();
+  let res=await fetch(API_URL);
+  let data=await res.json();
 
-  localStorage.setItem(CACHE_KEY, JSON.stringify({timestamp:now,data}));
+  localStorage.setItem(CACHE_KEY,JSON.stringify({
+    timestamp:now,
+    data:data
+  }));
+
   return data;
 }
 
-let DATA = [];
-let FILTRADOS = [];
+let DATA=[], FILTRADOS=[];
 let estado="todos";
 let ordenCampo="";
 let asc=true;
 
+/* LOAD */
 document.addEventListener("DOMContentLoaded", async ()=>{
-  let json = await getData();
+  let json=await getData();
 
-  DATA = (json.recambios||[]).filter(r=>String(r.activo).toUpperCase()==="SI");
+  DATA=(json.recambios||[]).filter(r=>
+    String(r.activo).toUpperCase()==="SI"
+  );
 
   cargarAlmacenes();
   filtrar();
 });
 
+/* ALMACENES */
 function cargarAlmacenes(){
   let lista=[...new Set(DATA.map(r=>r.almacen).filter(a=>a))];
-  filtroAlmacen.innerHTML = `<option value="">Todos</option>` +
-    lista.map(a=>`<option>${a}</option>`).join("");
+
+  filtroAlmacen.innerHTML =
+    `<option value="">Todos los almacenes</option>` +
+    lista.map(a=>`<option value="${a}">${a}</option>`).join("");
 }
 
+/* FILTROS */
 function setEstado(e){ estado=e; filtrar(); }
 
 function filtrar(){
@@ -145,26 +206,29 @@ function filtrar(){
   let alm=filtroAlmacen.value;
 
   FILTRADOS = DATA.filter(r=>{
-    let stock=+r.stock||0, min=+r.min||0, max=+r.max||0;
+    let stock=+r.stock||0;
+    let min=+r.min||0;
+    let max=+r.max||0;
 
-    let ok =
-      (r.codigo+"").includes(v) ||
-      (r.nombre+"").toLowerCase().includes(v);
+    let match =
+      String(r.codigo).includes(v) ||
+      String(r.nombre).toLowerCase().includes(v);
 
     if(alm && r.almacen!==alm) return false;
 
-    if(estado==="bajo") ok &= stock<min;
-    if(estado==="alto") ok &= stock>max;
-    if(estado==="critico") ok &= String(r.critico).toUpperCase()==="SI";
+    if(estado==="bajo") match &= stock<min;
+    if(estado==="alto") match &= stock>max;
+    if(estado==="critico") match &= String(r.critico).toUpperCase()==="SI";
 
-    return ok;
+    return match;
   });
 
   render();
 }
 
+/* ORDEN */
 function ordenar(c){
-  asc = ordenCampo===c ? !asc : true;
+  asc = (ordenCampo===c)?!asc:true;
   ordenCampo=c;
 
   FILTRADOS.sort((a,b)=>{
@@ -177,13 +241,20 @@ function ordenar(c){
   render();
 }
 
+/* RENDER */
 function render(){
   tabla.innerHTML = FILTRADOS.map(r=>{
-    let stock=+r.stock||0, min=+r.min||0, max=+r.max||0;
-    let clase = stock<min?"bajo":stock>max?"alto":
-      (String(r.critico).toUpperCase()==="SI"?"critico":"");
+    let stock=+r.stock||0;
+    let min=+r.min||0;
+    let max=+r.max||0;
 
-    return `<tr class="${clase}">
+    let clase =
+      stock<min?"bajo":
+      stock>max?"alto":
+      String(r.critico).toUpperCase()==="SI"?"critico":"";
+
+    return `
+    <tr class="${clase}">
       <td>${r.codigo}</td>
       <td class="nombre">${r.nombre}</td>
       <td>${r.almacen||""}</td>
@@ -196,7 +267,9 @@ function render(){
   }).join("");
 }
 
+/* NAV */
 function volver(){ location.href="index.html"; }
+function irHistorico(){ location.href="historico.html"; }
 </script>
 
 </body>
