@@ -3,127 +3,44 @@
 <head>
 <meta charset="UTF-8">
 <title>Histórico</title>
-
 <meta name="viewport" content="width=device-width, initial-scale=1">
 
 <style>
-body {
-  font-family: Arial;
-  margin:0;
-  background:white;
-  color:black;
-}
-
-/* FONDO */
+body { font-family: Arial; margin:0; background:white; }
 body::before {
-  content:"";
-  position:fixed;
-  width:100%;
-  height:100%;
+  content:""; position:fixed; width:100%; height:100%;
   background:url("op.png") center no-repeat;
-  background-size:60%;
-  opacity:0.3;
-  z-index:-1;
+  background-size:60%; opacity:0.5; z-index:-1;
 }
 
-/* HEADER */
 .header {
-  position: sticky;
-  top: 0;
-  z-index: 1000;
-  display:flex;
-  flex-direction:column;
-  align-items:center;
-  background: rgba(255,255,255,0.95);
-  padding:15px;
-  box-shadow:0 2px 8px rgba(0,0,0,0.1);
+  position:sticky; top:0;
+  text-align:center; padding:12px;
+  background:rgba(255,255,255,0.95);
 }
 
-.header h2 {
-  margin:5px 0 0 0;
-  font-size:18px;
-}
+.container { padding:10px; }
 
-/* CONTENEDOR */
-.container {
-  padding:10px;
-}
-
-/* INPUTS */
 input {
-  width:100%;
-  padding:12px;
-  margin:6px 0;
-  border-radius:10px;
-  border:1px solid #ccc;
-  box-sizing:border-box;
-  font-size:14px;
+  width:100%; padding:10px; margin:5px 0;
+  border-radius:10px; border:1px solid #ccc;
 }
 
-/* BOTONES */
 button {
-  width:100%;
-  padding:12px;
-  margin:6px 0;
-  border:none;
-  border-radius:10px;
-  background:#0E3471;
-  color:white;
-  font-size:14px;
-  cursor:pointer;
-  box-shadow:0 4px 0 rgba(0,0,0,0.2);
-  transition:0.2s;
+  padding:10px; border:none; border-radius:10px;
+  background:#0E3471; color:white;
 }
 
-button:hover {
-  filter:brightness(1.1);
+table { width:100%; border-collapse:collapse; }
+
+th, td { padding:8px; text-align:center; }
+
+thead th {
+  position:sticky; top:120px;
+  background:#f5f5f5; cursor:pointer;
 }
 
-button:active {
-  transform:translateY(2px);
-  box-shadow:0 2px 0 rgba(0,0,0,0.2);
-}
-
-/* BOTONES SUPERIORES */
-.nav {
-  display:flex;
-  gap:6px;
-}
-
-.nav button {
-  flex:1;
-}
-
-/* TABLA */
-.table {
-  width:100%;
-  border-collapse:collapse;
-  font-size:13px;
-}
-
-.table th, .table td {
-  padding:10px;
-  text-align:center;
-}
-
-.table td.nombre {
-  text-align:left;
-}
-
-/* FILAS */
-.table tr {
-  border-bottom:1px solid rgba(0,0,0,0.2);
-}
-
-/* HEADER TABLA */
-.table thead th {
-  position: sticky;
-  top: 180px;
-  background:#f5f5f5;
-  z-index:500;
-  cursor:pointer;
-}
-
+.nombre { text-align:left; }
 </style>
 </head>
 
@@ -131,19 +48,16 @@ button:active {
 
 <div class="header">
   <img src="op.png" height="40">
-  <h2>Gestión de recambios OP Mobility Pedrola</h2>
+  <h3>Histórico</h3>
 </div>
 
 <div class="container">
 
-<div class="nav">
-  <button onclick="volver()">⬅ Inicio</button>
-  <button onclick="irAlmacen()">📦 Almacén</button>
-</div>
+<button onclick="volver()">⬅ Volver</button>
 
 <input id="buscador" placeholder="Buscar..." oninput="filtrar()">
 
-<table class="table">
+<table>
 <thead>
 <tr>
 <th onclick="ordenar('fecha')">Fecha</th>
@@ -161,106 +75,86 @@ button:active {
 </div>
 
 <script>
-const API_URL = "https://script.google.com/macros/s/AKfycbxyURi4bcmWwsaZ4vdXUUVnr_Xu7y9BRG75tITfdwh-zgSIFpvC2lyKJLTT3XTFNS5XZA/exec?v=20";
+const API_URL="TU_URL";
 
-// SESIÓN
-let sesion = JSON.parse(localStorage.getItem("sesion"));
-if (!sesion) window.location.href="index.html";
+// CACHE
+const CACHE_KEY="data_cache";
+const CACHE_TIME=60000;
 
-sesion.timestamp = Date.now();
-localStorage.setItem("sesion", JSON.stringify(sesion));
+async function getData(){
+  let c=JSON.parse(localStorage.getItem(CACHE_KEY));
+  let now=Date.now();
+  if(c && now-c.timestamp<CACHE_TIME) return c.data;
 
-let DATA = [];
-let RECAMBIOS = [];
-let FILTRADOS = [];
-let ordenActual = "";
-let asc = true;
+  let r=await fetch(API_URL);
+  let d=await r.json();
+  localStorage.setItem(CACHE_KEY,JSON.stringify({timestamp:now,data:d}));
+  return d;
+}
 
-window.onload = async () => {
-  try {
-    const res = await fetch(API_URL);
-    const json = await res.json();
+let DATA=[], RECAMBIOS=[], FILTRADOS=[];
+let ordenCampo="", asc=true;
 
-    DATA = json.movimientos || [];
-    RECAMBIOS = json.recambios || [];
+document.addEventListener("DOMContentLoaded", async ()=>{
+  let json=await getData();
 
-    mapearDatos();
-    FILTRADOS = DATA;
-    render();
+  DATA=json.movimientos||[];
+  RECAMBIOS=json.recambios||[];
 
-  } catch (e) {
-    alert("Error cargando datos");
-    console.error(e);
-  }
-};
+  mapear();
+  FILTRADOS=DATA;
+  render();
+});
 
-// MAPEAR NOMBRE
-function mapearDatos() {
-  DATA = DATA.map(m => {
-
-    const r = RECAMBIOS.find(x => x.codigo == m.codigo);
-
-    return {
-      ...m,
-      nombre: r ? r.nombre : "-"
-    };
+function mapear(){
+  DATA = DATA.map(m=>{
+    let r = RECAMBIOS.find(x=>x.codigo==m.codigo);
+    return {...m, nombre:r?r.nombre:"-"};
   });
 }
 
-// FILTRO
-function filtrar() {
-  let v = buscador.value.toLowerCase();
+function filtrar(){
+  let v=buscador.value.toLowerCase();
 
   FILTRADOS = DATA.filter(m =>
-    String(m.codigo).toLowerCase().includes(v) ||
-    String(m.nombre).toLowerCase().includes(v) ||
-    String(m.usuario).toLowerCase().includes(v) ||
-    String(m.orden).toLowerCase().includes(v)
+    (m.codigo+"").includes(v) ||
+    (m.nombre+"").toLowerCase().includes(v) ||
+    (m.usuario+"").toLowerCase().includes(v) ||
+    (m.orden+"").toLowerCase().includes(v)
   );
 
   render();
 }
 
-// ORDENAR
-function ordenar(campo) {
-
-  asc = (ordenActual === campo) ? !asc : true;
-  ordenActual = campo;
+function ordenar(c){
+  asc = ordenCampo===c ? !asc : true;
+  ordenCampo=c;
 
   FILTRADOS.sort((a,b)=>{
-
-    let v1 = a[campo];
-    let v2 = b[campo];
-
-    v1 = isNaN(v1) ? String(v1).toLowerCase() : Number(v1);
-    v2 = isNaN(v2) ? String(v2).toLowerCase() : Number(v2);
-
-    if (v1 > v2) return asc ? 1 : -1;
-    if (v1 < v2) return asc ? -1 : 1;
-    return 0;
+    let v1=a[c]||"", v2=b[c]||"";
+    v1=isNaN(v1)?v1.toLowerCase():+v1;
+    v2=isNaN(v2)?v2.toLowerCase():+v2;
+    return (v1>v2?1:-1)*(asc?1:-1);
   });
 
   render();
 }
 
-// RENDER
-function render() {
-  tabla.innerHTML = FILTRADOS.slice().reverse().map(m => `
+function render(){
+  tabla.innerHTML = FILTRADOS.slice().reverse().map(m=>`
     <tr>
-      <td>${m.fecha || ""}</td>
+      <td>${m.fecha||""}</td>
       <td>${m.codigo}</td>
       <td class="nombre">${m.nombre}</td>
       <td>${m.tipo}</td>
       <td>${m.usuario}</td>
-      <td>${m.orden || ""}</td>
+      <td>${m.orden||""}</td>
       <td>${m.cantidad}</td>
     </tr>
   `).join("");
 }
 
-// NAV
-function volver(){ window.location.href="index.html"; }
-function irAlmacen(){ window.location.href="almacen.html"; }
+function volver(){ location.href="index.html"; }
 </script>
 
 </body>

@@ -8,108 +8,39 @@
 <script src="https://unpkg.com/html5-qrcode"></script>
 
 <style>
-body {
-  font-family: Arial;
-  margin:0;
-  background:white;
-}
-
+body { font-family: Arial; margin:0; background:white; }
 body::before {
-  content:"";
-  position:fixed;
-  width:100%;
-  height:100%;
+  content:""; position:fixed; width:100%; height:100%;
   background:url("op.png") center no-repeat;
-  background-size:60%;
-  opacity:0.5;
-  z-index:-1;
+  background-size:60%; opacity:0.5; z-index:-1;
 }
-
-.header {
-  text-align:center;
-  padding:15px;
-  background:rgba(255,255,255,0.95);
-  box-shadow:0 2px 8px rgba(0,0,0,0.1);
-}
-
+.header { text-align:center; padding:15px; background:rgba(255,255,255,0.95); }
 .container { padding:15px; }
 
 input {
-  width:100%;
-  padding:12px;
-  margin:4px 0;
-  border-radius:10px;
-  border:1px solid #ccc;
+  width:100%; padding:12px; margin:4px 0;
+  border-radius:10px; border:1px solid #ccc;
 }
 
-/* BOTONES */
 button {
-  padding:14px;
-  border:none;
-  border-radius:12px;
-  font-size:16px;
-  cursor:pointer;
-  box-shadow:0 3px 6px rgba(0,0,0,0.2);
+  padding:14px; border:none; border-radius:12px;
+  cursor:pointer; box-shadow:0 3px 6px rgba(0,0,0,0.2);
 }
-
 button:hover { opacity:0.9; }
 
-.btnScan {
-  display:block;
-  width:30%;
-  margin:0 auto 10px auto;
-  background:#0E3471;
-  color:white;
-}
+.btnScan { width:30%; margin:auto; display:block; background:#0E3471; color:white; }
 
-/* FILAS */
-.row {
-  display:flex;
-  justify-content:space-between;
-  margin-top:8px;
-}
+.row { display:flex; justify-content:space-between; margin-top:8px; }
+.btnEntrada { width:49.5%; background:green; color:white; }
+.btnSalida { width:49.5%; background:red; color:white; }
 
-.btnEntrada, .btnSalida {
-  width:49.5%;
-  color:white;
-}
+.nav { display:flex; justify-content:space-between; margin-top:8px; }
+.nav button { width:32.75%; background:#0E3471; color:white; }
 
-.btnEntrada { background:green; }
-.btnSalida { background:red; }
+.logout { width:100%; background:#333; color:white; margin-top:15px; }
 
-.nav {
-  display:flex;
-  justify-content:space-between;
-  margin-top:8px;
-}
-
-.nav button {
-  width:32.75%;
-  background:#0E3471;
-  color:white;
-}
-
-.logout {
-  width:100%;
-  background:#333;
-  color:white;
-  margin-top:15px;
-}
-
-/* SCANNER */
-#scannerBox {
-  max-height:0;
-  overflow:hidden;
-  transition:all 0.3s ease;
-}
-
-#scannerBox.active {
-  max-height:400px;
-}
-
-#reader {
-  width:100%;
-}
+#scannerBox { max-height:0; overflow:hidden; transition:0.3s; }
+#scannerBox.active { max-height:400px; }
 </style>
 </head>
 
@@ -117,32 +48,30 @@ button:hover { opacity:0.9; }
 
 <div class="header">
   <img src="op.png" height="50">
-  <h2>Gestión de recambios OP Mobility Pedrola</h2>
+  <h2>Gestión de recambios</h2>
 </div>
 
 <div class="container">
 
-<button class="btnScan" onclick="toggleScanner()">📷 Escanear código</button>
+<button class="btnScan" onclick="toggleScanner()">📷 Escanear</button>
 
 <div id="scannerBox">
   <div id="reader"></div>
-  <input id="codigoManual" placeholder="Código manual" onkeypress="manualEnter(event)">
 </div>
 
 <input id="codigo" placeholder="Código" readonly>
 <input id="nombre" placeholder="Nombre" readonly>
-<input id="cantidad" type="number" min="1" step="1" placeholder="Cantidad">
+<input id="cantidad" type="number" placeholder="Cantidad">
 <input id="ot" placeholder="OT">
 
 <div class="row">
-  <button class="btnEntrada" onclick="registrar('entrada')">Añadir material</button>
-  <button class="btnSalida" onclick="registrar('salida')">Sacar material</button>
+  <button class="btnEntrada" onclick="registrar('entrada')">Añadir</button>
+  <button class="btnSalida" onclick="registrar('salida')">Sacar</button>
 </div>
 
 <div class="nav">
   <button onclick="go('almacen.html')">Almacén</button>
   <button onclick="go('historico.html')">Histórico</button>
-  <button id="btnStats" onclick="go('direccion.html')" style="display:none">Estadísticas</button>
 </div>
 
 <button class="logout" onclick="logout()">Cerrar sesión</button>
@@ -150,162 +79,103 @@ button:hover { opacity:0.9; }
 </div>
 
 <script>
-const API_URL = "https://script.google.com/macros/s/AKfycbxyURi4bcmWwsaZ4vdXUUVnr_Xu7y9BRG75tITfdwh-zgSIFpvC2lyKJLTT3XTFNS5XZA/exec";
+const API_URL = "TU_URL";
+
+const CACHE_KEY = "data_cache";
+const CACHE_TIME = 60000;
+
+async function getData() {
+  let cache = JSON.parse(localStorage.getItem(CACHE_KEY));
+  let now = Date.now();
+
+  if (cache && (now - cache.timestamp < CACHE_TIME)) {
+    return cache.data;
+  }
+
+  let res = await fetch(API_URL);
+  let data = await res.json();
+
+  localStorage.setItem(CACHE_KEY, JSON.stringify({
+    timestamp: now,
+    data: data
+  }));
+
+  return data;
+}
+
+// precarga
+getData();
 
 let DATA = [];
 let RECAMBIO = null;
-let scanner = null;
-let scanning = false;
-
-// control de lectura estable
-let codigoDetectado = null;
-let timerScan = null;
-
-// SESIÓN
-let sesion = JSON.parse(localStorage.getItem("sesion"));
-if(!sesion) location.href="login.html";
-
-if(["alberto","jose luis"].includes(sesion.usuario.toLowerCase())){
-  document.getElementById("btnStats").style.display="block";
-}
 
 // LOAD
-window.onload = async ()=>{
-  let res = await fetch(API_URL);
-  let json = await res.json();
+document.addEventListener("DOMContentLoaded", async ()=>{
+  let json = await getData();
   DATA = json.recambios || [];
-};
+});
 
-// TOGGLE
+// SCANNER (con retardo 2s)
+let scanner, codigoDetectado=null, timer;
+
 function toggleScanner(){
   let box = document.getElementById("scannerBox");
 
   if(!box.classList.contains("active")){
     box.classList.add("active");
-    iniciarScanner();
-  } else {
-    cerrarScanner();
-  }
-}
 
-// SCANNER
-function iniciarScanner(){
+    scanner = new Html5Qrcode("reader");
 
-  if(scanning) return;
+    scanner.start({ facingMode:"environment" }, { fps:10 }, txt=>{
+      if(txt !== codigoDetectado){
+        codigoDetectado = txt;
+        clearTimeout(timer);
 
-  scanner = new Html5Qrcode("reader");
-
-  scanner.start(
-    { facingMode: "environment" },
-    {
-      fps: 10,
-      qrbox: { width: 250, height: 120 }
-    },
-    (decodedText) => {
-
-      // si cambia código → reiniciar temporizador
-      if(decodedText !== codigoDetectado){
-        codigoDetectado = decodedText;
-
-        clearTimeout(timerScan);
-
-        timerScan = setTimeout(() => {
-
-          buscarRecambio(decodedText);
+        timer = setTimeout(()=>{
+          buscar(txt);
           cerrarScanner();
-
-          codigoDetectado = null;
-
-        }, 2000); // ⏱️ 2 segundos
+          codigoDetectado=null;
+        },2000);
       }
-    }
-  );
+    });
 
-  scanning = true;
+  } else cerrarScanner();
 }
 
 function cerrarScanner(){
   document.getElementById("scannerBox").classList.remove("active");
-
-  if(scanner){
-    scanner.stop().then(()=>{
-      scanner.clear();
-      scanning = false;
-    });
-  }
-}
-
-// MANUAL
-function manualEnter(e){
-  if(e.key==="Enter"){
-    buscarRecambio(e.target.value);
-    cerrarScanner();
-  }
+  if(scanner) scanner.stop();
 }
 
 // BUSCAR
-function buscarRecambio(codigoLeido){
-
-  let codigo = String(codigoLeido).trim();
-
-  RECAMBIO = DATA.find(r => String(r.codigo).trim() === codigo);
-
-  if(!RECAMBIO){
-    alert("Código no existe");
-    return;
-  }
+function buscar(c){
+  RECAMBIO = DATA.find(r=>String(r.codigo)==c);
+  if(!RECAMBIO) return alert("No existe");
 
   codigo.value = RECAMBIO.codigo;
   nombre.value = RECAMBIO.nombre;
 }
 
-// VALIDACIÓN
-function getCantidad(){
-  let n = Number(cantidad.value);
-  if(!n || n<=0 || !Number.isInteger(n)) return null;
-  return n;
-}
-
-// REGISTRAR
+// REGISTRO
 async function registrar(tipo){
-
   if(!RECAMBIO) return alert("Escanea primero");
 
-  let cant = getCantidad();
-  if(!cant) return alert("Cantidad inválida");
+  let cant = Number(cantidad.value);
+  if(!cant || cant<=0) return alert("Cantidad inválida");
 
-  let stock = Number(RECAMBIO.stock)||0;
-  if(tipo==="salida" && cant>stock) return alert("Stock insuficiente");
+  if(tipo==="salida" && cant > Number(RECAMBIO.stock))
+    return alert("Stock insuficiente");
 
-  await fetch(API_URL,{
-    method:"POST",
-    body:JSON.stringify({
-      tipo,
-      codigo:RECAMBIO.codigo,
-      cantidad:cant,
-      usuario:sesion.usuario,
-      orden:ot.value||""
-    })
-  });
+  await fetch(API_URL,{method:"POST",body:JSON.stringify({
+    tipo, codigo:RECAMBIO.codigo, cantidad:cant, orden:ot.value
+  })});
 
-  alert("Movimiento registrado");
-  limpiar();
+  alert("OK");
 }
 
-function limpiar(){
-  codigo.value="";
-  nombre.value="";
-  cantidad.value="";
-  ot.value="";
-  RECAMBIO=null;
-}
-
+// NAV
 function go(p){ location.href=p; }
-
-function logout(){
-  localStorage.removeItem("sesion");
-  location.href="login.html";
-}
+function logout(){ localStorage.clear(); location.href="login.html"; }
 </script>
 
 </body>
